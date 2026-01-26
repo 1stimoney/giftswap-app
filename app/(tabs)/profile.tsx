@@ -1,13 +1,12 @@
-import { RefreshScrollView } from '@/component/Refreshcontext'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'expo-router'
 import React, { useEffect, useState } from 'react'
 import {
-  ActivityIndicator,
   Alert,
   Dimensions,
   FlatList,
   Modal,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -30,7 +29,7 @@ interface Bank {
 
 export default function ProfilePage() {
   const router = useRouter()
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false)
   const [userProfile, setUserProfile] = useState<any>({
     username: '',
     full_name: '',
@@ -41,6 +40,7 @@ export default function ProfilePage() {
   const [selectedBank, setSelectedBank] = useState<string | null>(null)
   const [updating, setUpdating] = useState(false)
   const [showModal, setShowModal] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
   const [newBank, setNewBank] = useState({
     bank_name: '',
     account_number: '',
@@ -263,15 +263,18 @@ export default function ProfilePage() {
     }
   }
 
-  if (loading)
-    return (
-      <View style={styles.loader}>
-        <ActivityIndicator size='large' color='#2563eb' />
-      </View>
-    )
-
   return (
-    <RefreshScrollView refreshing={loading} onRefresh={fetchProfileData}>
+    <ScrollView
+      contentContainerStyle={styles.container}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={fetchProfileData}
+          colors={['#2563eb']}
+        />
+      }
+    >
+      {' '}
       <ScrollView contentContainerStyle={styles.container}>
         {/* Balance Section */}
         <View style={styles.balanceBox}>
@@ -426,7 +429,7 @@ export default function ProfilePage() {
           </View>
         </Modal>
       </ScrollView>
-    </RefreshScrollView>
+    </ScrollView>
   )
 }
 
