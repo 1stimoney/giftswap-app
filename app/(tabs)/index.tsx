@@ -1,98 +1,409 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import { RefreshScrollView } from '@/component/Refreshcontext'
+import { Ionicons } from '@expo/vector-icons'
+import { useRouter } from 'expo-router'
+import { useCallback, useEffect, useState } from 'react'
+import {
+  ActivityIndicator,
+  FlatList,
+  Modal,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native'
+import { supabase } from '../../lib/supabase'
 
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+export default function Home() {
+  const [loading, setLoading] = useState(true)
+  const [username, setUsername] = useState('')
+  const [balance, setBalance] = useState(0)
+  const [transactions, setTransactions] = useState<any[]>([])
+  const [refreshing, setRefreshing] = useState(false)
+  const [selectedTransaction, setSelectedTransaction] = useState<any>(null)
+  const [page, setPage] = useState(1)
+  const [hasMore, setHasMore] = useState(true)
+  const router = useRouter()
 
-export default function HomeScreen() {
+  const ITEMS_PER_PAGE = 10
+
+  useEffect(() => {
+    fetchUserAndTransactions(true)
+  }, [])
+
+  const fetchUserAndTransactions = async (reset = false) => {
+    try {
+      if (reset) {
+        setPage(1)
+        setHasMore(true)
+      }
+
+      setLoading(true)
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (!user) return
+
+      // Fetch user profile
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('username, balance')
+        .eq('id', user.id)
+        .single()
+
+      setUsername(profile?.username || 'User')
+      setBalance(profile?.balance || 0)
+
+      // Pagination
+      const from = (page - 1) * ITEMS_PER_PAGE
+      const to = from + ITEMS_PER_PAGE - 1
+
+      // Fetch withdrawals
+      const { data: withdrawals } = await supabase
+        .from('withdrawals')
+        .select('id, amount, status, created_at')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .range(from, to)
+
+      // Fetch trades (include card_type and rate)
+      const { data: trades } = await supabase
+        .from('trades')
+        .select('id, total, card_name, rate, amount_usd, status, created_at')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .range(from, to)
+
+      // Normalize both
+      const normalizedTrades = (trades || []).map((t) => ({
+        id: t.id,
+        type: 'Trade',
+        amount: t.total || 0,
+        card_type: t.card_name,
+        rate: t.rate,
+        amount_usd: t.amount_usd,
+        status: t.status,
+        created_at: t.created_at,
+      }))
+
+      const normalizedWithdrawals = (withdrawals || []).map((w) => ({
+        id: w.id,
+        type: 'Withdrawal',
+        amount: w.amount || 0,
+        status: w.status,
+        created_at: w.created_at,
+      }))
+
+      const merged = [...normalizedTrades, ...normalizedWithdrawals].sort(
+        (a, b) =>
+          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      )
+
+      if (reset) setTransactions(merged)
+      else setTransactions((prev) => [...prev, ...merged])
+
+      if (merged.length < ITEMS_PER_PAGE) setHasMore(false)
+    } catch (error) {
+      console.error('Error fetching transactions:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true)
+    await fetchUserAndTransactions(true)
+    setRefreshing(false)
+  }, [])
+
+  const loadMore = async () => {
+    if (!hasMore || loading) return
+    setPage((prev) => prev + 1)
+    await fetchUserAndTransactions()
+  }
+
+  const renderTransaction = ({ item }: { item: any }) => (
+    <TouchableOpacity
+      style={styles.transactionItem}
+      onPress={() => setSelectedTransaction(item)}
+    >
+      <View>
+        <Text style={styles.transactionType}>{item.type}</Text>
+        <Text style={styles.transactionDate}>
+          {new Date(item.created_at).toLocaleString()}
+        </Text>
+      </View>
+      <View style={{ alignItems: 'flex-end' }}>
+        <Text style={styles.transactionAmount}>
+          ₦{item.amount.toLocaleString()}
+        </Text>
+        <Text
+          style={[
+            styles.transactionStatus,
+            item.status === 'success' ? styles.success : styles.pending,
+          ]}
+        >
+          {item.status}
+        </Text>
+      </View>
+    </TouchableOpacity>
+  )
+
+  if (loading && !transactions.length) {
+    return (
+      <View style={styles.loader}>
+        <ActivityIndicator size='large' color='#2563eb' />
+      </View>
+    )
+  }
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+    <RefreshScrollView refreshing={refreshing} onRefresh={onRefresh}>
+      <ScrollView
+        style={styles.container}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      >
+        {/* Header */}
+        <View style={styles.header}>
+          <View>
+            <Text style={styles.welcome}>Welcome,</Text>
+            <Text style={styles.username}>{username}</Text>
+          </View>
+          <Ionicons
+            name='person-circle-outline'
+            size={42}
+            color='#2563eb'
+            onPress={() => router.push('/profile')}
+          />
+        </View>
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
-  );
+        {/* Balance Card */}
+        <View style={styles.balanceCard}>
+          <Text style={styles.balanceLabel}>Available Balance</Text>
+          <Text style={styles.balance}>₦{balance.toLocaleString()}</Text>
+        </View>
+
+        {/* Action Buttons */}
+        <View style={styles.actionContainer}>
+          <TouchableOpacity
+            style={[styles.actionCard, { backgroundColor: '#E6F4FE' }]}
+            onPress={() => router.push('/withdraw')}
+          >
+            <Ionicons name='cash-outline' size={28} color='#2563eb' />
+            <Text style={styles.actionText}>Withdrawal</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.actionCard, { backgroundColor: '#EBF8E1' }]}
+            onPress={() => router.push('/trade')}
+          >
+            <Ionicons
+              name='swap-horizontal-outline'
+              size={28}
+              color='#16a34a'
+            />
+            <Text style={styles.actionText}>Trade</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Transactions */}
+        <View style={styles.transactions}>
+          <Text style={styles.sectionTitle}>Recent Transactions</Text>
+          {transactions.length === 0 ? (
+            <Text style={styles.noTransaction}>No transactions yet</Text>
+          ) : (
+            <FlatList
+              data={transactions}
+              renderItem={renderTransaction}
+              keyExtractor={(item) => item.id.toString()}
+              scrollEnabled={false}
+              onEndReached={loadMore}
+              onEndReachedThreshold={0.2}
+              ListFooterComponent={
+                hasMore ? (
+                  <ActivityIndicator
+                    style={{ marginVertical: 10 }}
+                    color='#2563eb'
+                  />
+                ) : null
+              }
+            />
+          )}
+        </View>
+
+        {/* Transaction Modal */}
+        <Modal
+          visible={!!selectedTransaction}
+          transparent
+          animationType='slide'
+          onRequestClose={() => setSelectedTransaction(null)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalTitle}>Transaction Details</Text>
+              {selectedTransaction && (
+                <>
+                  <Text style={styles.modalText}>
+                    <Text style={styles.bold}>Type:</Text>{' '}
+                    {selectedTransaction.type}
+                  </Text>
+                  <Text style={styles.modalText}>
+                    <Text style={styles.bold}>Amount:</Text> ₦
+                    {selectedTransaction.amount.toLocaleString()}
+                  </Text>
+                  <Text style={styles.modalText}>
+                    <Text style={styles.bold}>Status:</Text>{' '}
+                    {selectedTransaction.status}
+                  </Text>
+                  <Text style={styles.modalText}>
+                    <Text style={styles.bold}>Date:</Text>{' '}
+                    {new Date(selectedTransaction.created_at).toLocaleString()}
+                  </Text>
+
+                  {/* Extra details for Trade transactions */}
+                  {selectedTransaction.type === 'Trade' && (
+                    <>
+                      <Text style={styles.modalText}>
+                        <Text style={styles.bold}>Card Type:</Text>{' '}
+                        {selectedTransaction.card_type || 'N/A'}
+                      </Text>
+                      <Text style={styles.modalText}>
+                        <Text style={styles.bold}>Rate:</Text>{' '}
+                        {selectedTransaction.rate
+                          ? `₦${selectedTransaction.rate}/$`
+                          : 'N/A'}
+                      </Text>
+                      <Text style={styles.modalText}>
+                        <Text style={styles.bold}>Card Amount:</Text>{' '}
+                        {selectedTransaction.amount_usd
+                          ? `$${selectedTransaction.amount_usd}`
+                          : 'N/A'}
+                      </Text>
+                    </>
+                  )}
+                </>
+              )}
+              <TouchableOpacity
+                style={styles.closeButton}
+                onPress={() => setSelectedTransaction(null)}
+              >
+                <Text style={styles.closeText}>Close</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+      </ScrollView>
+    </RefreshScrollView>
+  )
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
+  container: { flex: 1, backgroundColor: '#F9FAFB', padding: 20 },
+  loader: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  header: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    gap: 8,
+    marginBottom: 20,
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
+  welcome: { fontSize: 16, color: '#6B7280' },
+  username: { fontSize: 22, fontWeight: '700', color: '#111827' },
+  balanceCard: {
+    backgroundColor: '#fff',
+    borderRadius: 18,
+    padding: 20,
+    marginBottom: 25,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+  balanceLabel: { fontSize: 14, color: '#6B7280' },
+  balance: { fontSize: 30, fontWeight: '800', color: '#111827', marginTop: 6 },
+  actionContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 25,
   },
-});
+  actionCard: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 16,
+    paddingVertical: 30,
+    marginHorizontal: 6,
+  },
+  actionText: {
+    marginTop: 8,
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#111827',
+  },
+  transactions: { marginTop: 10 },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 10,
+    color: '#111827',
+  },
+  noTransaction: {
+    textAlign: 'center',
+    color: '#6B7280',
+    fontSize: 14,
+    marginTop: 10,
+  },
+  transactionItem: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 10,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+  },
+  transactionType: { fontSize: 14, color: '#374151', fontWeight: '600' },
+  transactionAmount: { fontSize: 15, fontWeight: '700', color: '#111827' },
+  transactionStatus: {
+    fontSize: 13,
+    fontWeight: '600',
+    textTransform: 'capitalize',
+  },
+  transactionDate: { fontSize: 12, color: '#9CA3AF' },
+  success: { color: '#16a34a' },
+  pending: { color: '#d97706' },
+
+  // Modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    width: '85%',
+    borderRadius: 20,
+    padding: 25,
+    alignItems: 'center',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    marginBottom: 15,
+    color: '#111827',
+  },
+  modalText: { fontSize: 16, color: '#374151', marginBottom: 8 },
+  bold: { fontWeight: '700' },
+  closeButton: {
+    backgroundColor: '#2563eb',
+    marginTop: 15,
+    paddingVertical: 10,
+    paddingHorizontal: 30,
+    borderRadius: 10,
+  },
+  closeText: { color: '#fff', fontWeight: '600', fontSize: 16 },
+})
