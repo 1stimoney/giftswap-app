@@ -1,10 +1,34 @@
+import { ensurePushTokenRowForThisInstall } from '@/lib/push/registerPush'
+import { supabase } from '@/lib/supabase'
 import { Ionicons } from '@expo/vector-icons'
 import { Redirect, Tabs } from 'expo-router'
+import { useEffect } from 'react'
 import { StyleSheet, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useAuth } from '../../authContext'
 
 export default function TabsLayout() {
+  useEffect(() => {
+    let mounted = true
+
+    const run = async () => {
+      const { data } = await supabase.auth.getUser()
+      const user = data?.user
+      if (!user || !mounted) return
+
+      try {
+        await ensurePushTokenRowForThisInstall(user.id)
+      } catch (e) {
+        console.log('push token init error:', e)
+      }
+    }
+
+    run()
+    return () => {
+      mounted = false
+    }
+  }, [])
+
   const { session } = useAuth()
 
   if (!session) {

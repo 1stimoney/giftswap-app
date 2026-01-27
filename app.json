@@ -2,7 +2,6 @@
   "expo": {
     "name": "giftswap",
     "slug": "giftswap",
-    "owner": "1stimoney",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -11,7 +10,7 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.1stimoney.giftswap",
+      "bundleIdentifier": "com.imoney1st.giftswap",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
@@ -25,7 +24,7 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.imoney.giftswap"
+      "package": "com.imoney1st.giftswap"
     },
     "web": {
       "output": "static",
@@ -61,11 +60,12 @@
     },
     "extra": {
       "eas": {
-        "projectId": "ab0c3771-dc03-446b-b992-d13d5feee41c"
+        "projectId": "27881e81-2b3e-4a7a-8534-f620dc94fa30"
       },
       "EXPO_PUBLIC_SUPABASE_URL": "https://pdvgdlaesyjjuivqlukm.supabase.co",
       "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBkdmdkbGFlc3lqanVpdnFsdWttIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjExNjA4NjEsImV4cCI6MjA3NjczNjg2MX0.sRK0H5Xvk0rQz0fvjLJmJC_eK90F09r4VsFBzM7_4YQ",
       "router": {}
-    }
+    },
+    "owner": "imoney1st"
   }
 }
