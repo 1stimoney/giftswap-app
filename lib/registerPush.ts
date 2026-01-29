@@ -1,76 +1,89 @@
-// lib/registerForPushNotifications.ts
 import { supabase } from '@/lib/supabase'
 import * as Application from 'expo-application'
 import Constants from 'expo-constants'
+import * as Device from 'expo-device'
 import * as Notifications from 'expo-notifications'
+import { useEffect, useRef } from 'react'
 import { Platform } from 'react-native'
 
-function getProjectId(): string | undefined {
-  return (
-    Constants.expoConfig?.extra?.eas?.projectId ||
-    (Constants.easConfig as any)?.projectId
-  )
+async function getDeviceId() {
+  // best-effort device identifier
+  if (Platform.OS === 'android')
+    return Application.getAndroidId() ?? 'android-unknown'
+  // iOS: identifierForVendor can be null sometimes
+  return Application.getIosIdForVendorAsync
+    ? (await Application.getIosIdForVendorAsync()) ?? 'ios-unknown'
+    : 'ios-unknown'
 }
 
-function getDeviceId() {
-  // Stable per-install. If you want truly persistent across reinstalls,
-  // we can store a generated UUID in SecureStore instead.
-  return (
-    Application.getAndroidId?.() ||
-    Application.applicationId ||
-    `unknown-${Math.random().toString(36).slice(2)}`
-  )
-}
+export function useRegisterPushToken() {
+  const hasRun = useRef(false)
 
-export async function ensurePushTokenForThisDevice(userId: string) {
-  const deviceId = String(getDeviceId())
+  useEffect(() => {
+    if (hasRun.current) return
+    hasRun.current = true
+    ;(async () => {
+      try {
+        const { data: auth } = await supabase.auth.getUser()
+        const user = auth.user
+        if (!user) return // only register when logged in
 
-  // If a row exists for THIS device, do not prompt again
-  const { data: existing, error: existErr } = await supabase
-    .from('push_tokens')
-    .select('id, token')
-    .eq('device_id', deviceId)
-    .maybeSingle()
+        if (!Device.isDevice) {
+          console.log('Push tokens require a physical device.')
+          return
+        }
 
-  if (existErr) throw existErr
-  if (existing?.token) return { status: 'exists' as const }
+        // 1) Ask permission (this shows the allow/deny popup)
+        const perm = await Notifications.getPermissionsAsync()
+        let status = perm.status
 
-  // Permission prompt (only happens when device row doesn't exist)
-  const perm = await Notifications.getPermissionsAsync()
-  let finalStatus = perm.status
+        if (status !== 'granted') {
+          const req = await Notifications.requestPermissionsAsync()
+          status = req.status
+        }
 
-  if (finalStatus !== 'granted') {
-    const req = await Notifications.requestPermissionsAsync()
-    finalStatus = req.status
-  }
+        if (status !== 'granted') {
+          console.log('User denied notifications')
+          return
+        }
 
-  if (finalStatus !== 'granted') return { status: 'denied' as const }
+        // 2) Get expo token
+        const projectId =
+          Constants.expoConfig?.extra?.eas?.projectId ||
+          Constants.easConfig?.projectId
 
-  if (Platform.OS === 'android') {
-    await Notifications.setNotificationChannelAsync('default', {
-      name: 'default',
-      importance: Notifications.AndroidImportance.MAX,
-    })
-  }
+        if (!projectId) {
+          console.log('Missing EAS projectId for push token.')
+          return
+        }
 
-  const projectId = getProjectId()
-  if (!projectId) throw new Error('Missing EAS projectId')
+        const tokenRes = await Notifications.getExpoPushTokenAsync({
+          projectId,
+        })
+        const expoPushToken = tokenRes.data
 
-  const token = (await Notifications.getExpoPushTokenAsync({ projectId })).data
+        // 3) Save token (multiple devices supported)
+        const device_id = await getDeviceId()
 
-  // Upsert by device_id (multi-device safe)
-  const { error: upsertErr } = await supabase.from('push_tokens').upsert(
-    {
-      user_id: userId,
-      device_id: deviceId,
-      token,
-      platform: Platform.OS,
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: 'device_id' }
-  )
+        const payload = {
+          user_id: user.id,
+          expo_push_token: expoPushToken,
+          device_id,
+          platform: Platform.OS,
+        }
 
-  if (upsertErr) throw upsertErr
+        const { error } = await supabase
+          .from('push_tokens')
+          .upsert(payload, { onConflict: 'user_id,device_id' })
 
-  return { status: 'saved' as const, token, deviceId }
+        if (error) {
+          console.log('❌ push token save error:', error)
+        } else {
+          console.log('✅ push token saved:', payload)
+        }
+      } catch (e) {
+        console.log('❌ push register failed:', e)
+      }
+    })()
+  }, [])
 }

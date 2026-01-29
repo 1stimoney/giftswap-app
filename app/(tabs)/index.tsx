@@ -1,7 +1,7 @@
 import { RefreshScrollView } from '@/component/Refreshcontext'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   ActivityIndicator,
   FlatList,
@@ -24,12 +24,73 @@ export default function Home() {
   const [selectedTransaction, setSelectedTransaction] = useState<any>(null)
   const [page, setPage] = useState(1)
   const [hasMore, setHasMore] = useState(true)
-  const router = useRouter()
 
+  // ✅ Notifications badge
+  const [unreadCount, setUnreadCount] = useState(0)
+  const userIdRef = useRef<string | null>(null)
+
+  const router = useRouter()
   const ITEMS_PER_PAGE = 10
 
   useEffect(() => {
     fetchUserAndTransactions(true)
+  }, [])
+
+  const fetchUnreadCount = async () => {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) return
+
+    const { count } = await supabase
+      .from('notifications')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', user.id)
+      .eq('is_read', false)
+
+    setUnreadCount(count || 0)
+  }
+
+  // ✅ realtime for unread count
+  useEffect(() => {
+    let channel: any
+
+    const setup = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (!user) return
+
+      userIdRef.current = user.id
+      await fetchUnreadCount()
+
+      channel = supabase
+        .channel('notif-unread-count')
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'notifications' },
+          async (payload) => {
+            // if the notification belongs to this user, refresh count
+            const uid = userIdRef.current
+            const newRow = (payload as any)?.new
+            const oldRow = (payload as any)?.old
+
+            if (
+              (newRow?.user_id && newRow.user_id === uid) ||
+              (oldRow?.user_id && oldRow.user_id === uid)
+            ) {
+              await fetchUnreadCount()
+            }
+          }
+        )
+        .subscribe()
+    }
+
+    setup()
+
+    return () => {
+      if (channel) supabase.removeChannel(channel)
+    }
   }, [])
 
   const fetchUserAndTransactions = async (reset = false) => {
@@ -67,7 +128,7 @@ export default function Home() {
         .order('created_at', { ascending: false })
         .range(from, to)
 
-      // Fetch trades (include card_type and rate)
+      // Fetch trades
       const { data: trades } = await supabase
         .from('trades')
         .select('id, total, card_name, rate, amount_usd, status, created_at')
@@ -75,7 +136,6 @@ export default function Home() {
         .order('created_at', { ascending: false })
         .range(from, to)
 
-      // Normalize both
       const normalizedTrades = (trades || []).map((t) => ({
         id: t.id,
         type: 'Trade',
@@ -104,6 +164,9 @@ export default function Home() {
       else setTransactions((prev) => [...prev, ...merged])
 
       if (merged.length < ITEMS_PER_PAGE) setHasMore(false)
+
+      // ✅ refresh unread too
+      await fetchUnreadCount()
     } catch (error) {
       console.error('Error fetching transactions:', error)
     } finally {
@@ -141,7 +204,11 @@ export default function Home() {
         <Text
           style={[
             styles.transactionStatus,
-            item.status === 'success' ? styles.success : styles.pending,
+            item.status === 'approved' || item.status === 'success'
+              ? styles.success
+              : item.status === 'rejected'
+              ? styles.rejected
+              : styles.pending,
           ]}
         >
           {item.status}
@@ -172,12 +239,35 @@ export default function Home() {
             <Text style={styles.welcome}>Welcome,</Text>
             <Text style={styles.username}>{username}</Text>
           </View>
-          <Ionicons
-            name='person-circle-outline'
-            size={42}
-            color='#2563eb'
-            onPress={() => router.push('/profile')}
-          />
+
+          {/* ✅ Right Icons Row: Bell then Profile */}
+          <View style={styles.headerRight}>
+            <View
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}
+            >
+              <TouchableOpacity onPress={() => router.push('/notifications')}>
+                <View>
+                  <Ionicons
+                    name='notifications-outline'
+                    size={28}
+                    color='#2563eb'
+                  />
+                  {unreadCount > 0 && (
+                    <View style={styles.badge}>
+                      <Text style={styles.badgeText}>{unreadCount}</Text>
+                    </View>
+                  )}
+                </View>
+              </TouchableOpacity>
+
+              <Ionicons
+                name='person-circle-outline'
+                size={42}
+                color='#2563eb'
+                onPress={() => router.push('/profile')}
+              />
+            </View>
+          </View>
         </View>
 
         {/* Balance Card */}
@@ -263,7 +353,6 @@ export default function Home() {
                     {new Date(selectedTransaction.created_at).toLocaleString()}
                   </Text>
 
-                  {/* Extra details for Trade transactions */}
                   {selectedTransaction.type === 'Trade' && (
                     <>
                       <Text style={styles.modalText}>
@@ -303,14 +392,41 @@ export default function Home() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F9FAFB', padding: 20 },
   loader: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 20,
   },
+  headerRight: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+
+  bellWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#eff6ff',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  badge: {
+    position: 'absolute',
+    right: -6,
+    top: -4,
+    backgroundColor: '#ef4444',
+    borderRadius: 10,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  badgeText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+
   welcome: { fontSize: 16, color: '#6B7280' },
   username: { fontSize: 22, fontWeight: '700', color: '#111827' },
+
   balanceCard: {
     backgroundColor: '#fff',
     borderRadius: 18,
@@ -322,6 +438,7 @@ const styles = StyleSheet.create({
   },
   balanceLabel: { fontSize: 14, color: '#6B7280' },
   balance: { fontSize: 30, fontWeight: '800', color: '#111827', marginTop: 6 },
+
   actionContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -341,6 +458,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#111827',
   },
+
   transactions: { marginTop: 10 },
   sectionTitle: {
     fontSize: 18,
@@ -354,6 +472,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginTop: 10,
   },
+
   transactionItem: {
     backgroundColor: '#fff',
     borderRadius: 12,
@@ -374,6 +493,7 @@ const styles = StyleSheet.create({
   },
   transactionDate: { fontSize: 12, color: '#9CA3AF' },
   success: { color: '#16a34a' },
+  rejected: { color: '#dc2626' },
   pending: { color: '#d97706' },
 
   // Modal

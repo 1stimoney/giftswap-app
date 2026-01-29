@@ -1,6 +1,6 @@
 import { supabase } from '@/lib/supabase'
 import { Link, useRouter } from 'expo-router'
-import { useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import {
   Alert,
   KeyboardAvoidingView,
@@ -13,46 +13,159 @@ import {
   View,
 } from 'react-native'
 
+type Step = 'form' | 'verify'
+
 export default function SignUp() {
+  const router = useRouter()
+
+  const [step, setStep] = useState<Step>('form')
+
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [username, setUsername] = useState('')
   const [fullName, setFullName] = useState('')
+
+  const [otp, setOtp] = useState('')
   const [loading, setLoading] = useState(false)
-  const router = useRouter()
 
-  const handleSignUp = async () => {
+  // resend cooldown
+  const [cooldown, setCooldown] = useState(0)
+
+  const normalizedEmail = useMemo(() => email.trim().toLowerCase(), [email])
+
+  useEffect(() => {
+    if (cooldown <= 0) return
+    const t = setInterval(() => setCooldown((c) => c - 1), 1000)
+    return () => clearInterval(t)
+  }, [cooldown])
+
+  const showExistsAndGoLogin = () => {
+    Alert.alert(
+      'Account already exists',
+      'A user with this email already exists. Please proceed to login.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Go to Login',
+          onPress: () => router.replace('/(auth)/login'),
+        },
+      ]
+    )
+  }
+
+  const requestOtp = async () => {
+    if (!fullName.trim()) return Alert.alert('Missing', 'Enter your full name')
+    if (!username.trim()) return Alert.alert('Missing', 'Enter a username')
+    if (!normalizedEmail) return Alert.alert('Missing', 'Enter your email')
+    if (!password || password.length < 6)
+      return Alert.alert(
+        'Weak password',
+        'Password must be at least 6 characters'
+      )
+
     setLoading(true)
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: { username, full_name: fullName },
-      },
-    })
+    try {
+      // OTP signup flow (code-based verification)
+      // shouldCreateUser=true means if user doesn't exist, Supabase will create it.
+      const { error } = await supabase.auth.signInWithOtp({
+        email: normalizedEmail,
+        options: {
+          shouldCreateUser: true,
+          data: { username: username.trim(), full_name: fullName.trim() },
+        },
+      })
 
-    if (error) {
-      Alert.alert('Signup failed', error.message)
+      if (error) {
+        const msg = (error.message || '').toLowerCase()
+
+        // common "already exists" patterns
+        if (
+          msg.includes('already registered') ||
+          msg.includes('already exists') ||
+          msg.includes('user already') ||
+          msg.includes('email address already')
+        ) {
+          showExistsAndGoLogin()
+          return
+        }
+
+        Alert.alert('Signup failed', error.message)
+        return
+      }
+
+      setStep('verify')
+      setCooldown(30)
+      Alert.alert(
+        'Verification code sent',
+        `We sent a code to ${normalizedEmail}`
+      )
+    } catch (e: any) {
+      Alert.alert('Error', e?.message || 'Failed to send verification code')
+    } finally {
       setLoading(false)
-      return
     }
+  }
 
-    const user = data.user
-    if (user) {
+  const verifyOtpAndFinish = async () => {
+    if (!otp.trim())
+      return Alert.alert('Missing', 'Enter the verification code')
+
+    setLoading(true)
+    try {
+      const { data, error } = await supabase.auth.verifyOtp({
+        email: normalizedEmail,
+        token: otp.trim(),
+        type: 'email',
+      })
+
+      if (error) {
+        Alert.alert('Invalid code', error.message)
+        return
+      }
+
+      const user = data.user
+      if (!user) {
+        Alert.alert('Error', 'No user returned after verification.')
+        return
+      }
+
+      // Set password AFTER OTP verification (so user can log in with password)
+      const { error: passErr } = await supabase.auth.updateUser({
+        password,
+        data: { username: username.trim(), full_name: fullName.trim() },
+      })
+      if (passErr) {
+        Alert.alert('Error', passErr.message)
+        return
+      }
+
+      // Create profile row
       const { error: profileError } = await supabase.from('profiles').upsert({
         id: user.id,
         email: user.email,
-        full_name: fullName,
-        username: username,
+        full_name: fullName.trim(),
+        username: username.trim(),
         balance: 0,
       })
 
-      if (profileError) console.error('Profile insert error:', profileError)
-    }
+      if (profileError) {
+        // not blocking, but helpful to know
+        console.error('Profile upsert error:', profileError)
+      }
 
-    Alert.alert('Success', 'Check your email for confirmation link')
-    setLoading(false)
-    router.replace('/(tabs)')
+      Alert.alert('✅ Success', 'Your email is verified. Welcome to GiftSwap!')
+      router.replace('/(tabs)')
+    } catch (e: any) {
+      Alert.alert('Error', e?.message || 'Verification failed')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const resendOtp = async () => {
+    if (cooldown > 0) return
+    setOtp('')
+    await requestOtp()
   }
 
   return (
@@ -65,58 +178,117 @@ export default function SignUp() {
         keyboardShouldPersistTaps='handled'
       >
         <View style={styles.container}>
-          <Text style={styles.title}>Create Your Account</Text>
+          <Text style={styles.title}>
+            {step === 'form' ? 'Create Your Account' : 'Verify Your Email'}
+          </Text>
           <Text style={styles.subtitle}>
-            Join GiftSwap and start trading smarter 💳
+            {step === 'form'
+              ? 'Join GiftSwap and start trading smarter 💳'
+              : `Enter the code sent to ${normalizedEmail}`}
           </Text>
 
           <View style={styles.formCard}>
-            <TextInput
-              style={styles.input}
-              placeholder='Full Name'
-              onChangeText={setFullName}
-              placeholderTextColor={'#888'}
-            />
-            <TextInput
-              style={styles.input}
-              placeholder='Username'
-              onChangeText={setUsername}
-              placeholderTextColor={'#888'}
-            />
-            <TextInput
-              style={styles.input}
-              placeholder='Email'
-              keyboardType='email-address'
-              onChangeText={setEmail}
-              placeholderTextColor={'#888'}
-              autoCapitalize='none'
-            />
-            <TextInput
-              style={styles.input}
-              placeholder='Password'
-              secureTextEntry
-              onChangeText={setPassword}
-              placeholderTextColor={'#888'}
-            />
+            {step === 'form' ? (
+              <>
+                <TextInput
+                  style={styles.input}
+                  placeholder='Full Name'
+                  value={fullName}
+                  onChangeText={setFullName}
+                  placeholderTextColor={'#888'}
+                />
+                <TextInput
+                  style={styles.input}
+                  placeholder='Username'
+                  value={username}
+                  onChangeText={setUsername}
+                  placeholderTextColor={'#888'}
+                  autoCapitalize='none'
+                />
+                <TextInput
+                  style={styles.input}
+                  placeholder='Email'
+                  keyboardType='email-address'
+                  value={email}
+                  onChangeText={setEmail}
+                  placeholderTextColor={'#888'}
+                  autoCapitalize='none'
+                />
+                <TextInput
+                  style={styles.input}
+                  placeholder='Password'
+                  secureTextEntry
+                  value={password}
+                  onChangeText={setPassword}
+                  placeholderTextColor={'#888'}
+                />
 
-            <TouchableOpacity
-              style={[styles.button, loading && { opacity: 0.7 }]}
-              onPress={handleSignUp}
-              disabled={loading}
-            >
-              <Text style={styles.buttonText}>
-                {loading ? 'Creating...' : 'Sign Up'}
-              </Text>
-            </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.button, loading && { opacity: 0.7 }]}
+                  onPress={requestOtp}
+                  disabled={loading}
+                >
+                  <Text style={styles.buttonText}>
+                    {loading ? 'Sending code...' : 'Continue'}
+                  </Text>
+                </TouchableOpacity>
 
-            <Link href='/(auth)/login' asChild>
-              <TouchableOpacity style={{ marginTop: 16 }}>
-                <Text style={styles.linkText}>
-                  Already have an account?{' '}
-                  <Text style={styles.linkAccent}>Sign in</Text>
-                </Text>
-              </TouchableOpacity>
-            </Link>
+                <Link href='/(auth)/login' asChild>
+                  <TouchableOpacity style={{ marginTop: 16 }}>
+                    <Text style={styles.linkText}>
+                      Already have an account?{' '}
+                      <Text style={styles.linkAccent}>Sign in</Text>
+                    </Text>
+                  </TouchableOpacity>
+                </Link>
+              </>
+            ) : (
+              <>
+                <TextInput
+                  style={styles.input}
+                  placeholder='Verification code'
+                  value={otp}
+                  onChangeText={setOtp}
+                  placeholderTextColor={'#888'}
+                  keyboardType='number-pad'
+                />
+
+                <TouchableOpacity
+                  style={[styles.button, loading && { opacity: 0.7 }]}
+                  onPress={verifyOtpAndFinish}
+                  disabled={loading}
+                >
+                  <Text style={styles.buttonText}>
+                    {loading ? 'Verifying...' : 'Verify & Create Account'}
+                  </Text>
+                </TouchableOpacity>
+
+                <View style={styles.verifyRow}>
+                  <TouchableOpacity
+                    onPress={() => setStep('form')}
+                    disabled={loading}
+                    style={{ paddingVertical: 10, paddingHorizontal: 6 }}
+                  >
+                    <Text style={styles.linkAccent}>← Edit details</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    onPress={resendOtp}
+                    disabled={loading || cooldown > 0}
+                    style={{ paddingVertical: 10, paddingHorizontal: 6 }}
+                  >
+                    <Text
+                      style={[
+                        styles.linkAccent,
+                        (loading || cooldown > 0) && { opacity: 0.6 },
+                      ]}
+                    >
+                      {cooldown > 0 ? `Resend in ${cooldown}s` : 'Resend code'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
           </View>
         </View>
       </ScrollView>
@@ -127,7 +299,7 @@ export default function SignUp() {
 const styles = StyleSheet.create({
   wrapper: {
     flex: 1,
-    backgroundColor: '#f8fafc', // soft gray background
+    backgroundColor: '#f8fafc',
   },
   container: {
     alignItems: 'center',
@@ -176,7 +348,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 10,
+    marginTop: 6,
   },
   buttonText: {
     color: '#fff',
@@ -191,5 +363,10 @@ const styles = StyleSheet.create({
   linkAccent: {
     color: '#2563eb',
     fontWeight: '600',
+  },
+  verifyRow: {
+    marginTop: 10,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
   },
 })
