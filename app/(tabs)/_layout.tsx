@@ -1,12 +1,15 @@
-import { useRegisterPushToken } from '@/lib/registerPush'
+import { registerPushTokenIfNeeded } from '@/lib/registerPush'
 import { Ionicons } from '@expo/vector-icons'
 import { Redirect, Tabs } from 'expo-router'
+import { useEffect } from 'react'
 import { StyleSheet, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useAuth } from '../../authContext'
 
 export default function TabsLayout() {
-  useRegisterPushToken()
+  useEffect(() => {
+    registerPushTokenIfNeeded()
+  }, [])
 
   const { session } = useAuth()
 
