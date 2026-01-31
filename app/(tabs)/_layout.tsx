@@ -1,4 +1,4 @@
-import { registerPushTokenIfNeeded } from '@/lib/registerPush'
+import { registerForPushAndSave } from '@/lib/registerPush'
 import { Ionicons } from '@expo/vector-icons'
 import { Redirect, Tabs } from 'expo-router'
 import { useEffect } from 'react'
@@ -8,7 +8,9 @@ import { useAuth } from '../../authContext'
 
 export default function TabsLayout() {
   useEffect(() => {
-    registerPushTokenIfNeeded()
+    registerForPushAndSave().then((res) => {
+      console.log('🔔 Push register result:', res)
+    })
   }, [])
 
   const { session } = useAuth()
@@ -50,19 +52,6 @@ export default function TabsLayout() {
               tabBarIcon: ({ color, size }) => (
                 <Ionicons
                   name='swap-horizontal-outline'
-                  color={color}
-                  size={size}
-                />
-              ),
-            }}
-          />
-          <Tabs.Screen
-            name='notifications'
-            options={{
-              title: 'Notifications',
-              tabBarIcon: ({ color, size }) => (
-                <Ionicons
-                  name='notifications-outline'
                   color={color}
                   size={size}
                 />

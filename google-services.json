@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "216352510221",
+    "project_id": "giftswap-2970d",
+    "storage_bucket": "giftswap-2970d.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:216352510221:android:2fafc043bfbc8791466044",
+        "android_client_info": {
+          "package_name": "com.imoney1st.giftswap"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDmegT26RR3HJiSGfCjrqAk9MAg6tDiLRE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

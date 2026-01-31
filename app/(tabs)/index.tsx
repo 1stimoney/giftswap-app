@@ -25,7 +25,7 @@ export default function Home() {
   const [page, setPage] = useState(1)
   const [hasMore, setHasMore] = useState(true)
 
-  // ✅ Notifications badge
+  // ✅ Notifications
   const [unreadCount, setUnreadCount] = useState(0)
   const userIdRef = useRef<string | null>(null)
 
@@ -36,22 +36,28 @@ export default function Home() {
     fetchUserAndTransactions(true)
   }, [])
 
-  const fetchUnreadCount = async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-    if (!user) return
+  const fetchUnreadCount = useCallback(async () => {
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (!user) return
+      userIdRef.current = user.id
 
-    const { count } = await supabase
-      .from('notifications')
-      .select('*', { count: 'exact', head: true })
-      .eq('user_id', user.id)
-      .eq('is_read', false)
+      const { count, error } = await supabase
+        .from('notifications')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', user.id)
+        .eq('is_read', false)
 
-    setUnreadCount(count || 0)
-  }
+      if (error) throw error
+      setUnreadCount(count ?? 0)
+    } catch (e) {
+      console.warn('Unread count error:', e)
+    }
+  }, [])
 
-  // ✅ realtime for unread count
+  // ✅ Subscribe to notifications realtime
   useEffect(() => {
     let channel: any
 
@@ -60,27 +66,24 @@ export default function Home() {
         data: { user },
       } = await supabase.auth.getUser()
       if (!user) return
-
       userIdRef.current = user.id
+
+      // initial count
       await fetchUnreadCount()
 
       channel = supabase
-        .channel('notif-unread-count')
+        .channel(`notifications-${user.id}`)
         .on(
           'postgres_changes',
-          { event: '*', schema: 'public', table: 'notifications' },
-          async (payload) => {
-            // if the notification belongs to this user, refresh count
-            const uid = userIdRef.current
-            const newRow = (payload as any)?.new
-            const oldRow = (payload as any)?.old
-
-            if (
-              (newRow?.user_id && newRow.user_id === uid) ||
-              (oldRow?.user_id && oldRow.user_id === uid)
-            ) {
-              await fetchUnreadCount()
-            }
+          {
+            event: '*',
+            schema: 'public',
+            table: 'notifications',
+            filter: `user_id=eq.${user.id}`,
+          },
+          async () => {
+            // simplest + safest: re-fetch exact count
+            await fetchUnreadCount()
           }
         )
         .subscribe()
@@ -91,7 +94,7 @@ export default function Home() {
     return () => {
       if (channel) supabase.removeChannel(channel)
     }
-  }, [])
+  }, [fetchUnreadCount])
 
   const fetchUserAndTransactions = async (reset = false) => {
     try {
@@ -164,9 +167,6 @@ export default function Home() {
       else setTransactions((prev) => [...prev, ...merged])
 
       if (merged.length < ITEMS_PER_PAGE) setHasMore(false)
-
-      // ✅ refresh unread too
-      await fetchUnreadCount()
     } catch (error) {
       console.error('Error fetching transactions:', error)
     } finally {
@@ -177,8 +177,9 @@ export default function Home() {
   const onRefresh = useCallback(async () => {
     setRefreshing(true)
     await fetchUserAndTransactions(true)
+    await fetchUnreadCount()
     setRefreshing(false)
-  }, [])
+  }, [fetchUnreadCount])
 
   const loadMore = async () => {
     if (!hasMore || loading) return
@@ -211,7 +212,7 @@ export default function Home() {
               : styles.pending,
           ]}
         >
-          {item.status}
+          {String(item.status).toLowerCase()}
         </Text>
       </View>
     </TouchableOpacity>
@@ -240,33 +241,34 @@ export default function Home() {
             <Text style={styles.username}>{username}</Text>
           </View>
 
-          {/* ✅ Right Icons Row: Bell then Profile */}
           <View style={styles.headerRight}>
-            <View
-              style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}
+            {/* 🔔 Notifications */}
+            <TouchableOpacity
+              onPress={() => router.push('/notifications')}
+              activeOpacity={0.8}
+              style={styles.bellWrap}
             >
-              <TouchableOpacity onPress={() => router.push('/notifications')}>
-                <View>
-                  <Ionicons
-                    name='notifications-outline'
-                    size={28}
-                    color='#2563eb'
-                  />
-                  {unreadCount > 0 && (
-                    <View style={styles.badge}>
-                      <Text style={styles.badgeText}>{unreadCount}</Text>
-                    </View>
-                  )}
-                </View>
-              </TouchableOpacity>
-
               <Ionicons
-                name='person-circle-outline'
-                size={42}
-                color='#2563eb'
-                onPress={() => router.push('/profile')}
+                name='notifications-outline'
+                size={26}
+                color='#111827'
               />
-            </View>
+              {unreadCount > 0 && (
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>
+                    {unreadCount > 99 ? '99+' : unreadCount}
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
+
+            {/* 👤 Profile */}
+            <Ionicons
+              name='person-circle-outline'
+              size={42}
+              color='#2563eb'
+              onPress={() => router.push('/profile')}
+            />
           </View>
         </View>
 
@@ -401,31 +403,28 @@ const styles = StyleSheet.create({
   },
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: 12 },
 
+  welcome: { fontSize: 16, color: '#6B7280' },
+  username: { fontSize: 22, fontWeight: '700', color: '#111827' },
+
   bellWrap: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#eff6ff',
-    justifyContent: 'center',
+    width: 38,
+    height: 38,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   badge: {
     position: 'absolute',
-    right: -6,
-    top: -4,
+    top: 3,
+    right: 3,
     backgroundColor: '#ef4444',
-    borderRadius: 10,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    paddingHorizontal: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  badgeText: {
-    color: '#fff',
-    fontSize: 11,
-    fontWeight: '700',
-  },
-
-  welcome: { fontSize: 16, color: '#6B7280' },
-  username: { fontSize: 22, fontWeight: '700', color: '#111827' },
+  badgeText: { color: '#fff', fontSize: 10, fontWeight: '800' },
 
   balanceCard: {
     backgroundColor: '#fff',
@@ -472,7 +471,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginTop: 10,
   },
-
   transactionItem: {
     backgroundColor: '#fff',
     borderRadius: 12,
@@ -493,10 +491,9 @@ const styles = StyleSheet.create({
   },
   transactionDate: { fontSize: 12, color: '#9CA3AF' },
   success: { color: '#16a34a' },
-  rejected: { color: '#dc2626' },
   pending: { color: '#d97706' },
+  rejected: { color: '#dc2626' },
 
-  // Modal
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',
