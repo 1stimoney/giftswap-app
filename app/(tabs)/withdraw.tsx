@@ -1,10 +1,16 @@
 import { supabase } from '@/lib/supabase'
+import { Ionicons } from '@expo/vector-icons'
+import * as Crypto from 'expo-crypto'
 import { LinearGradient } from 'expo-linear-gradient'
-import React, { useCallback, useEffect, useState } from 'react'
+import { useRouter } from 'expo-router'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Modal,
+  Platform,
+  Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -13,11 +19,6 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native'
-import Animated, {
-  useAnimatedProps,
-  useSharedValue,
-  withTiming,
-} from 'react-native-reanimated'
 
 interface BankInfo {
   id: string
@@ -34,62 +35,119 @@ interface Withdrawal {
   bank: BankInfo
 }
 
-const AnimatedText = Animated.createAnimatedComponent(Text)
+type ProfilePins = {
+  withdraw_pin_hash: string | null
+  withdraw_pin_enabled: boolean
+  email: string | null
+  balance: number
+}
+
+const money = (n: number) => `₦${Number(n || 0).toLocaleString()}`
+
+async function sha256(input: string) {
+  return Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, input)
+}
 
 export default function WithdrawPage() {
+  const router = useRouter()
+
   const [userId, setUserId] = useState<string | null>(null)
+  const [profileEmail, setProfileEmail] = useState<string>('')
   const [balance, setBalance] = useState<number>(0)
-  const balanceValue = useSharedValue(0)
+
   const [bankAccounts, setBankAccounts] = useState<BankInfo[]>([])
   const [selectedBank, setSelectedBank] = useState<BankInfo | null>(null)
+
   const [amount, setAmount] = useState('')
   const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([])
+
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
 
-  // new bank info
-  const [newBankName, setNewBankName] = useState('')
-  const [newAccountNumber, setNewAccountNumber] = useState('')
-  const [newAccountName, setNewAccountName] = useState('')
+  // PIN fields from profile
+  const [pinHash, setPinHash] = useState<string | null>(null)
+  const [pinEnabled, setPinEnabled] = useState<boolean>(true)
 
-  // ✅ Animate balance count-up
-  useEffect(() => {
-    balanceValue.value = withTiming(balance, { duration: 800 })
-  }, [balance])
+  // ---- PIN & password modals state ----
+  const [showPwdModal, setShowPwdModal] = useState(false)
+  const [pwd, setPwd] = useState('')
 
-  const animatedProps = useAnimatedProps(() => ({
-    text: `₦${Math.floor(balanceValue.value).toLocaleString()}`,
-  }))
+  const [showSetPinModal, setShowSetPinModal] = useState(false)
+  const [pin, setPin] = useState('')
+  const [pin2, setPin2] = useState('')
 
-  // ✅ Fetch user data
+  const [showEnterPinModal, setShowEnterPinModal] = useState(false)
+  const [pinEntry, setPinEntry] = useState('')
+
+  // Keep a “pending withdraw” intent so after PIN setup we proceed
+  const [pendingWithdraw, setPendingWithdraw] = useState(false)
+
+  const parsedAmount = useMemo(() => {
+    const clean = amount.replace(/[^0-9.]/g, '')
+    const n = Number(clean)
+    return Number.isFinite(n) ? n : 0
+  }, [amount])
+
+  const canWithdraw = useMemo(() => {
+    return (
+      !!selectedBank &&
+      parsedAmount > 0 &&
+      parsedAmount <= balance &&
+      !submitting
+    )
+  }, [selectedBank, parsedAmount, balance, submitting])
+
+  // ✅ Fetch user id
   const fetchUser = useCallback(async () => {
     const { data, error } = await supabase.auth.getUser()
-    if (!error && data.user) setUserId(data.user.id)
+    if (error) return
+    if (data.user) setUserId(data.user.id)
   }, [])
 
-  // ✅ Fetch all data (balance, banks, withdrawals)
+  // ✅ Fetch all data
   const fetchData = useCallback(async () => {
     if (!userId) return
     try {
       setLoading(true)
 
-      // Balance
+      // Profile
       const { data: profile, error: profileErr } = await supabase
         .from('profiles')
-        .select('balance')
+        .select('balance, withdraw_pin_hash, withdraw_pin_enabled, email')
         .eq('id', userId)
         .single()
+
       if (profileErr) throw profileErr
-      setBalance(profile.balance)
+      const p = profile as ProfilePins
+
+      setBalance(Number(p.balance || 0))
+      setPinHash(p.withdraw_pin_hash ?? null)
+      setPinEnabled(p.withdraw_pin_enabled ?? true)
+      setProfileEmail(p.email ?? '')
 
       // Banks
       const { data: banks, error: bankErr } = await supabase
         .from('user_bank_info')
         .select('*')
         .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+
       if (bankErr) throw bankErr
-      setBankAccounts(banks)
-      if (banks.length > 0) setSelectedBank(banks[0])
+
+      const list = (banks || []).filter((b: any) => !b?.is_hidden)
+      setBankAccounts(list)
+
+      if (list.length > 0) {
+        // keep selected if still exists
+        setSelectedBank((prev) => {
+          if (!prev) return list[0]
+          const still = list.find((x: BankInfo) => x.id === prev.id)
+          return still ?? list[0]
+        })
+      } else {
+        setSelectedBank(null)
+      }
 
       // Withdrawals
       const { data: wd, error: wdErr } = await supabase
@@ -97,18 +155,18 @@ export default function WithdrawPage() {
         .select('*, bank:bank_id(*)')
         .eq('user_id', userId)
         .order('created_at', { ascending: false })
+
       if (wdErr) throw wdErr
-      setWithdrawals(wd)
+      setWithdrawals(wd || [])
     } catch (err) {
       console.error(err)
-      Alert.alert('Error', 'Failed to fetch data')
+      Alert.alert('Error', 'Failed to fetch withdrawal data')
     } finally {
       setLoading(false)
       setRefreshing(false)
     }
   }, [userId])
 
-  // ✅ Pull-to-refresh
   const onRefresh = useCallback(async () => {
     setRefreshing(true)
     await fetchData()
@@ -122,25 +180,167 @@ export default function WithdrawPage() {
     if (userId) fetchData()
   }, [userId])
 
-  // ✅ Withdraw
-  const handleWithdraw = async () => {
-    if (!amount || !selectedBank)
-      return Alert.alert('Missing info', 'Enter amount and select a bank')
+  // ---------------- PIN helpers ----------------
+  const requirePinBeforeWithdraw = useMemo(() => {
+    // If you want PIN always enforced on withdrawals, keep this true.
+    // If you want it toggle-based, use: return pinEnabled === true
+    return pinEnabled === true
+  }, [pinEnabled])
 
-    const amt = parseFloat(amount)
-    if (amt > balance)
-      return Alert.alert('Insufficient Balance', 'Reduce your amount')
+  const openPinGate = () => {
+    // New user: no pin hash set yet
+    if (!pinHash) {
+      setPendingWithdraw(true)
+      setShowPwdModal(true)
+      return
+    }
+
+    // Existing: ask for pin to proceed
+    setPendingWithdraw(true)
+    setShowEnterPinModal(true)
+  }
+
+  const verifyCurrentPassword = async () => {
+    try {
+      if (!pwd.trim()) {
+        Alert.alert('Missing', 'Enter your password to continue')
+        return
+      }
+
+      setSubmitting(true)
+
+      const email = (await supabase.auth.getUser()).data.user?.email
+      if (!email) throw new Error('No email found')
+
+      // Re-auth to confirm password
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password: pwd,
+      })
+      if (error) throw new Error('Wrong password. Please try again.')
+
+      // success -> move to set PIN
+      setShowPwdModal(false)
+      setPwd('')
+      setShowSetPinModal(true)
+    } catch (e: any) {
+      Alert.alert('Error', e?.message || 'Password verification failed')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const saveNewPin = async () => {
+    if (!userId) return
 
     try {
+      if (pin.length !== 4 || pin2.length !== 4) {
+        Alert.alert('Invalid PIN', 'PIN must be exactly 4 digits')
+        return
+      }
+      if (pin !== pin2) {
+        Alert.alert('Mismatch', 'PINs do not match')
+        return
+      }
+
+      setSubmitting(true)
+
+      const hash = await sha256(`${userId}:${pin}`)
+
+      const { error } = await supabase
+        .from('profiles')
+        .update({ withdraw_pin_hash: hash, withdraw_pin_enabled: true })
+        .eq('id', userId)
+
+      if (error) throw error
+
+      setPinHash(hash)
+      setPinEnabled(true)
+
+      setShowSetPinModal(false)
+      setPin('')
+      setPin2('')
+
+      Alert.alert('✅ PIN Created', 'Your withdrawal PIN is set.')
+
+      // continue withdrawal if it was waiting
+      if (pendingWithdraw) {
+        setPendingWithdraw(false)
+        // we can still ask for pin entry now (optional)
+        setShowEnterPinModal(true)
+      }
+    } catch (e: any) {
+      Alert.alert('Error', e?.message || 'Failed to save PIN')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const verifyPinAndWithdraw = async () => {
+    if (!userId) return
+    try {
+      if (pinEntry.length !== 4) {
+        Alert.alert('Invalid', 'Enter your 4-digit PIN')
+        return
+      }
+      if (!pinHash) {
+        Alert.alert('Missing PIN', 'Please create a PIN first')
+        return
+      }
+
+      setSubmitting(true)
+
+      const enteredHash = await sha256(`${userId}:${pinEntry}`)
+      if (enteredHash !== pinHash) {
+        throw new Error('Wrong PIN. Try again.')
+      }
+
+      setShowEnterPinModal(false)
+      setPinEntry('')
+      setPendingWithdraw(false)
+
+      await submitWithdrawal()
+    } catch (e: any) {
+      Alert.alert('Error', e?.message || 'PIN verification failed')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  // ---------------- Withdrawal ----------------
+  const submitWithdrawal = async () => {
+    if (!userId) return
+    if (!selectedBank) {
+      Alert.alert('No bank selected', 'Please select a bank account.')
+      return
+    }
+
+    const amt = parsedAmount
+
+    if (!amt || amt <= 0) {
+      Alert.alert('Invalid amount', 'Enter a valid amount.')
+      return
+    }
+
+    if (amt > balance) {
+      Alert.alert('Insufficient Balance', 'Reduce your amount.')
+      return
+    }
+
+    try {
+      setSubmitting(true)
+
       const { error } = await supabase.from('withdrawals').insert({
         user_id: userId,
         bank_id: selectedBank.id,
         amount: amt,
         status: 'pending',
       })
+
       if (error) throw error
 
-      Alert.alert('✅ Withdrawal Requested')
+      Alert.alert('✅ Withdrawal Requested', 'Your request is being processed.')
+
       setAmount('')
       setWithdrawals((prev) => [
         {
@@ -148,306 +348,674 @@ export default function WithdrawPage() {
           amount: amt,
           status: 'pending',
           created_at: new Date().toISOString(),
-          bank: selectedBank!,
+          bank: selectedBank,
         },
         ...prev,
       ])
       setBalance((prev) => prev - amt)
-    } catch (err) {
-      console.error(err)
+    } catch (e) {
+      console.error(e)
       Alert.alert('Error', 'Failed to submit withdrawal')
+    } finally {
+      setSubmitting(false)
     }
   }
 
-  // ✅ Add new bank
-  const handleAddBank = async () => {
-    if (!newBankName || !newAccountNumber || !newAccountName)
-      return Alert.alert('Please fill all fields')
+  const handleWithdrawPressed = async () => {
+    if (!canWithdraw) return
 
-    try {
-      const { data, error } = await supabase
-        .from('user_bank_info')
-        .insert([
-          {
-            user_id: userId,
-            bank_name: newBankName,
-            account_number: newAccountNumber,
-            account_name: newAccountName,
-          },
-        ])
-        .select()
-        .single()
-
-      if (error) throw error
-
-      setBankAccounts((prev) => [...prev, data])
-      setSelectedBank(data)
-      setNewBankName('')
-      setNewAccountNumber('')
-      setNewAccountName('')
-
-      Alert.alert('✅ Bank Added Successfully')
-    } catch (err) {
-      console.error(err)
-      Alert.alert('Error', 'Failed to add bank')
+    // If you require PIN, gate it
+    if (requirePinBeforeWithdraw) {
+      openPinGate()
+      return
     }
+
+    await submitWithdrawal()
   }
 
-  if (loading)
+  if (loading) {
     return (
       <View style={styles.loader}>
         <ActivityIndicator size='large' color='#2563eb' />
       </View>
     )
+  }
 
   return (
     <ScrollView
       style={styles.container}
       refreshControl={
-        <RefreshControl
-          refreshing={refreshing}
-          onRefresh={onRefresh}
-          colors={['#2563eb']}
-        />
+        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
       }
+      contentContainerStyle={{ paddingBottom: 30 }}
     >
       {/* Header */}
       <LinearGradient
-        colors={['#2563eb', '#1d4ed8']}
+        colors={['#0f172a', '#1d4ed8']}
         style={styles.header}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
       >
-        <Text style={styles.headerText}>Withdraw Funds</Text>
+        <Pressable style={styles.backBtn} onPress={() => router.back()}>
+          <Ionicons name='chevron-back' size={22} color='#ffffff' />
+        </Pressable>
+
+        <View style={{ flex: 1 }}>
+          <Text style={styles.headerTitle}>Withdraw</Text>
+          <Text style={styles.headerSub}>
+            Fast payouts • Secure withdrawals
+          </Text>
+        </View>
+
+        <Pressable
+          style={styles.manageBtn}
+          onPress={() => router.push('/linked-accounts')} // 🔁 change route if needed
+        >
+          <Ionicons name='card-outline' size={18} color='#0f172a' />
+          <Text style={styles.manageText}>Manage</Text>
+        </Pressable>
       </LinearGradient>
 
-      {/* Balance */}
-      <View style={styles.balanceBox}>
-        <Text style={styles.balanceLabel}>Current Balance</Text>
-        <Text style={styles.balanceValue}>₦{balance.toLocaleString()}</Text>
+      {/* Balance card */}
+      <View style={styles.balanceCard}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.balanceLabel}>Available Balance</Text>
+          <Text style={styles.balanceValue}>{money(balance)}</Text>
+        </View>
+
+        <View style={styles.pill}>
+          <Ionicons name='shield-checkmark-outline' size={16} color='#16a34a' />
+          <Text style={styles.pillText}>
+            {pinHash ? 'PIN Active' : 'Set PIN'}
+          </Text>
+        </View>
       </View>
 
-      {/* Banks */}
-      <Text style={styles.sectionTitle}>Select Bank Account</Text>
-      {bankAccounts.length === 0 ? (
-        <Text style={styles.noBank}>No bank accounts yet</Text>
-      ) : (
-        bankAccounts.map((bank) => (
+      {/* Bank picker */}
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Payout account</Text>
           <TouchableOpacity
-            key={bank.id}
-            onPress={() => setSelectedBank(bank)}
-            style={[
-              styles.bankCard,
-              selectedBank?.id === bank.id && styles.bankCardSelected,
-            ]}
+            onPress={() => router.push('/linked-accounts')}
+            style={styles.linkBtn}
           >
-            <Text style={styles.bankText}>
-              {bank.bank_name} - {bank.account_number}
-            </Text>
-            <Text style={styles.bankSub}>{bank.account_name}</Text>
+            <Text style={styles.linkText}>Manage account</Text>
+            <Ionicons name='chevron-forward' size={16} color='#2563eb' />
           </TouchableOpacity>
-        ))
-      )}
+        </View>
 
-      {/* Add new bank */}
-      <Text style={styles.sectionTitle}>Add New Bank</Text>
-      <TextInput
-        style={styles.input}
-        placeholder='Bank Name'
-        placeholderTextColor='#9ca3af'
-        value={newBankName}
-        onChangeText={setNewBankName}
-      />
-      <TextInput
-        style={styles.input}
-        placeholder='Account Number'
-        placeholderTextColor='#9ca3af'
-        keyboardType='numeric'
-        value={newAccountNumber}
-        onChangeText={setNewAccountNumber}
-      />
-      <TextInput
-        style={styles.input}
-        placeholder='Account Name'
-        placeholderTextColor='#9ca3af'
-        value={newAccountName}
-        onChangeText={setNewAccountName}
-      />
-      <TouchableOpacity onPress={handleAddBank} style={styles.actionButton}>
-        <LinearGradient
-          colors={['#22c55e', '#16a34a']}
-          style={styles.gradientButton}
-        >
-          <Text style={styles.actionText}>Add Bank</Text>
-        </LinearGradient>
-      </TouchableOpacity>
+        {bankAccounts.length === 0 ? (
+          <View style={styles.emptyCard}>
+            <Ionicons name='card-outline' size={22} color='#94a3b8' />
+            <Text style={styles.emptyTitle}>No bank account added</Text>
+            <Text style={styles.emptySub}>
+              Add a payout account to withdraw earnings.
+            </Text>
+            <TouchableOpacity
+              onPress={() => router.push('/banks' as any)}
+              style={styles.primaryBtn}
+            >
+              <Text style={styles.primaryBtnText}>Add bank account</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <View style={styles.bankWrap}>
+            {bankAccounts.map((b) => {
+              const selected = selectedBank?.id === b.id
+              return (
+                <Pressable
+                  key={b.id}
+                  onPress={() => setSelectedBank(b)}
+                  style={[styles.bankCard, selected && styles.bankCardSelected]}
+                >
+                  <View style={styles.bankIcon}>
+                    <Ionicons
+                      name='card-outline'
+                      size={18}
+                      color={selected ? '#2563eb' : '#0f172a'}
+                    />
+                  </View>
 
-      {/* Withdraw */}
-      <Text style={styles.sectionTitle}>Withdraw Funds</Text>
-      <TextInput
-        style={styles.input}
-        placeholder='Enter Amount'
-        placeholderTextColor='#9ca3af'
-        keyboardType='numeric'
-        value={amount}
-        onChangeText={setAmount}
-      />
-      <TouchableOpacity onPress={handleWithdraw} style={styles.actionButton}>
-        <LinearGradient
-          colors={['#2563eb', '#1d4ed8']}
-          style={styles.gradientButton}
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.bankName}>{b.bank_name}</Text>
+                    <Text style={styles.bankMeta}>
+                      {b.account_number} • {b.account_name}
+                    </Text>
+                  </View>
+
+                  {selected ? (
+                    <Ionicons
+                      name='checkmark-circle'
+                      size={20}
+                      color='#2563eb'
+                    />
+                  ) : (
+                    <Ionicons
+                      name='ellipse-outline'
+                      size={20}
+                      color='#cbd5e1'
+                    />
+                  )}
+                </Pressable>
+              )
+            })}
+          </View>
+        )}
+      </View>
+
+      {/* Amount + Withdraw */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Withdrawal amount</Text>
+
+        <View style={styles.amountBox}>
+          <Text style={styles.currency}>₦</Text>
+          <TextInput
+            style={styles.amountInput}
+            placeholder='0'
+            placeholderTextColor='#94a3b8'
+            keyboardType={Platform.OS === 'ios' ? 'number-pad' : 'numeric'}
+            value={amount}
+            onChangeText={setAmount}
+          />
+        </View>
+
+        <Text style={styles.hint}>
+          {parsedAmount > balance
+            ? 'Amount exceeds your balance.'
+            : 'Withdrawals are processed within 0–24 hours.'}
+        </Text>
+
+        <TouchableOpacity
+          onPress={handleWithdrawPressed}
+          disabled={!canWithdraw}
+          style={[styles.withdrawBtn, !canWithdraw && { opacity: 0.55 }]}
         >
-          <Text style={styles.actionText}>Withdraw</Text>
-        </LinearGradient>
-      </TouchableOpacity>
+          <LinearGradient
+            colors={['#2563eb', '#1d4ed8']}
+            style={styles.withdrawBtnInner}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+          >
+            {submitting ? (
+              <View
+                style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}
+              >
+                <ActivityIndicator color='#fff' />
+                <Text style={styles.withdrawText}>Processing…</Text>
+              </View>
+            ) : (
+              <Text style={styles.withdrawText}>Withdraw</Text>
+            )}
+          </LinearGradient>
+        </TouchableOpacity>
+      </View>
 
       {/* History */}
-      <Text style={styles.sectionTitle}>Withdrawal History</Text>
-      {withdrawals.length === 0 ? (
-        <Text style={styles.noBank}>No withdrawals yet</Text>
-      ) : (
-        <FlatList
-          data={withdrawals}
-          scrollEnabled={false}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            <View style={styles.withdrawCard}>
-              <Text style={styles.withdrawAmount}>
-                ₦{item.amount.toLocaleString()}
-              </Text>
-              <Text style={styles.withdrawBank}>
-                {item.bank?.bank_name} - {item.bank?.account_number}
-              </Text>
-              <Text style={styles.withdrawDate}>
-                {new Date(item.created_at).toLocaleString()}
-              </Text>
-              <View
-                style={[
-                  styles.statusBadge,
-                  {
-                    backgroundColor:
-                      item.status === 'approved'
-                        ? '#dcfce7'
-                        : item.status === 'rejected'
-                        ? '#fee2e2'
-                        : '#fef9c3',
-                  },
-                ]}
-              >
-                <Text
-                  style={{
-                    color:
-                      item.status === 'approved'
-                        ? '#16a34a'
-                        : item.status === 'rejected'
-                        ? '#dc2626'
-                        : '#ca8a04',
-                    fontWeight: '600',
-                  }}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Withdrawal history</Text>
+
+        {withdrawals.length === 0 ? (
+          <Text style={styles.noHistory}>No withdrawals yet</Text>
+        ) : (
+          <FlatList
+            data={withdrawals}
+            scrollEnabled={false}
+            keyExtractor={(i) => i.id}
+            renderItem={({ item }) => (
+              <View style={styles.historyCard}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.historyAmount}>{money(item.amount)}</Text>
+                  <Text style={styles.historyMeta}>
+                    {item.bank?.bank_name} • {item.bank?.account_number}
+                  </Text>
+                  <Text style={styles.historyDate}>
+                    {new Date(item.created_at).toLocaleString()}
+                  </Text>
+                </View>
+
+                <View
+                  style={[
+                    styles.badge,
+                    item.status === 'approved'
+                      ? styles.badgeApproved
+                      : item.status === 'rejected'
+                      ? styles.badgeRejected
+                      : styles.badgePending,
+                  ]}
                 >
-                  {item.status.toUpperCase()}
-                </Text>
+                  <Text
+                    style={[
+                      styles.badgeText,
+                      item.status === 'approved'
+                        ? { color: '#16a34a' }
+                        : item.status === 'rejected'
+                        ? { color: '#dc2626' }
+                        : { color: '#ca8a04' },
+                    ]}
+                  >
+                    {item.status.toUpperCase()}
+                  </Text>
+                </View>
               </View>
-            </View>
-          )}
-        />
-      )}
+            )}
+          />
+        )}
+      </View>
+
+      {/* -------- Password confirm modal -------- */}
+      <Modal visible={showPwdModal} transparent animationType='slide'>
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={() => !submitting && setShowPwdModal(false)}
+        >
+          <Pressable style={styles.sheet} onPress={() => {}}>
+            <View style={styles.sheetHandle} />
+            <Text style={styles.sheetTitle}>Confirm password</Text>
+            <Text style={styles.sheetSub}>
+              For your safety, confirm your password to create a withdrawal PIN.
+            </Text>
+
+            <TextInput
+              value={pwd}
+              onChangeText={setPwd}
+              secureTextEntry
+              placeholder='Enter your password'
+              placeholderTextColor='#94a3b8'
+              style={styles.sheetInput}
+            />
+
+            <TouchableOpacity
+              style={[
+                styles.sheetBtn,
+                (!pwd || submitting) && { opacity: 0.6 },
+              ]}
+              disabled={!pwd || submitting}
+              onPress={verifyCurrentPassword}
+            >
+              <Text style={styles.sheetBtnText}>
+                {submitting ? 'Verifying…' : 'Continue'}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.sheetCancel}
+              disabled={submitting}
+              onPress={() => setShowPwdModal(false)}
+            >
+              <Text style={styles.sheetCancelText}>Cancel</Text>
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* -------- Set PIN modal -------- */}
+      <Modal visible={showSetPinModal} transparent animationType='slide'>
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={() => !submitting && setShowSetPinModal(false)}
+        >
+          <Pressable style={styles.sheet} onPress={() => {}}>
+            <View style={styles.sheetHandle} />
+            <Text style={styles.sheetTitle}>Create withdrawal PIN</Text>
+            <Text style={styles.sheetSub}>
+              Set a 4-digit PIN you’ll use for withdrawals.
+            </Text>
+
+            <TextInput
+              value={pin}
+              onChangeText={(t) => setPin(t.replace(/\D/g, '').slice(0, 4))}
+              placeholder='Enter 4-digit PIN'
+              placeholderTextColor='#94a3b8'
+              keyboardType={Platform.OS === 'ios' ? 'number-pad' : 'numeric'}
+              secureTextEntry
+              style={styles.sheetInput}
+            />
+
+            <TextInput
+              value={pin2}
+              onChangeText={(t) => setPin2(t.replace(/\D/g, '').slice(0, 4))}
+              placeholder='Confirm PIN'
+              placeholderTextColor='#94a3b8'
+              keyboardType={Platform.OS === 'ios' ? 'number-pad' : 'numeric'}
+              secureTextEntry
+              style={styles.sheetInput}
+            />
+
+            <TouchableOpacity
+              style={[
+                styles.sheetBtn,
+                (pin.length !== 4 || pin2.length !== 4 || submitting) && {
+                  opacity: 0.6,
+                },
+              ]}
+              disabled={pin.length !== 4 || pin2.length !== 4 || submitting}
+              onPress={saveNewPin}
+            >
+              <Text style={styles.sheetBtnText}>
+                {submitting ? 'Saving…' : 'Save PIN'}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.sheetCancel}
+              disabled={submitting}
+              onPress={() => setShowSetPinModal(false)}
+            >
+              <Text style={styles.sheetCancelText}>Cancel</Text>
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* -------- Enter PIN modal -------- */}
+      <Modal visible={showEnterPinModal} transparent animationType='slide'>
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={() => !submitting && setShowEnterPinModal(false)}
+        >
+          <Pressable style={styles.sheet} onPress={() => {}}>
+            <View style={styles.sheetHandle} />
+            <Text style={styles.sheetTitle}>Enter PIN</Text>
+            <Text style={styles.sheetSub}>
+              Confirm your withdrawal with your 4-digit PIN.
+            </Text>
+
+            <TextInput
+              value={pinEntry}
+              onChangeText={(t) =>
+                setPinEntry(t.replace(/\D/g, '').slice(0, 4))
+              }
+              placeholder='••••'
+              placeholderTextColor='#94a3b8'
+              keyboardType={Platform.OS === 'ios' ? 'number-pad' : 'numeric'}
+              secureTextEntry
+              style={styles.sheetInput}
+            />
+
+            <TouchableOpacity
+              style={[
+                styles.sheetBtn,
+                (pinEntry.length !== 4 || submitting) && { opacity: 0.6 },
+              ]}
+              disabled={pinEntry.length !== 4 || submitting}
+              onPress={verifyPinAndWithdraw}
+            >
+              <Text style={styles.sheetBtnText}>
+                {submitting ? 'Checking…' : 'Confirm Withdrawal'}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.sheetCancel}
+              disabled={submitting}
+              onPress={() => setShowEnterPinModal(false)}
+            >
+              <Text style={styles.sheetCancelText}>Cancel</Text>
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </ScrollView>
   )
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f9fafb' },
+  container: { flex: 1, backgroundColor: '#f8fafc' },
   loader: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+
   header: {
-    borderRadius: 20,
-    paddingVertical: 22,
     margin: 16,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOpacity: 0.15,
-    shadowRadius: 6,
-    elevation: 4,
-  },
-  headerText: { color: '#fff', fontSize: 22, fontWeight: '700' },
-  balanceBox: {
-    backgroundColor: '#fff',
-    marginHorizontal: 16,
-    borderRadius: 16,
+    borderRadius: 22,
     padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
     shadowColor: '#000',
-    shadowOpacity: 0.05,
+    shadowOpacity: 0.18,
+    shadowRadius: 14,
+    elevation: 6,
+  },
+  backBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerTitle: { color: '#fff', fontSize: 18, fontWeight: '900' },
+  headerSub: {
+    color: 'rgba(255,255,255,0.75)',
+    marginTop: 2,
+    fontWeight: '800',
+  },
+
+  manageBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#ffffff',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 16,
+  },
+  manageText: { color: '#0f172a', fontWeight: '900' },
+
+  balanceCard: {
+    marginHorizontal: 16,
+    backgroundColor: '#ffffff',
+    borderRadius: 22,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    shadowColor: '#000',
+    shadowOpacity: 0.06,
+    shadowRadius: 14,
     elevation: 2,
   },
-  balanceLabel: { color: '#6b7280', fontSize: 15 },
+  balanceLabel: { color: '#64748b', fontWeight: '800' },
   balanceValue: {
-    fontSize: 26,
-    fontWeight: '700',
-    color: '#111827',
     marginTop: 6,
+    fontSize: 28,
+    fontWeight: '900',
+    color: '#0f172a',
   },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#374151',
-    marginHorizontal: 20,
-    marginTop: 20,
+
+  pill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#dcfce7',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 999,
+  },
+  pillText: { color: '#16a34a', fontWeight: '900' },
+
+  section: { marginTop: 16, marginHorizontal: 16 },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     marginBottom: 10,
   },
+  sectionTitle: { fontSize: 15, fontWeight: '900', color: '#0f172a' },
+
+  linkBtn: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  linkText: { color: '#2563eb', fontWeight: '900' },
+
+  emptyCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 22,
+    padding: 16,
+    alignItems: 'center',
+    gap: 8,
+    shadowColor: '#000',
+    shadowOpacity: 0.06,
+    shadowRadius: 14,
+    elevation: 2,
+  },
+  emptyTitle: { fontWeight: '900', color: '#0f172a', marginTop: 4 },
+  emptySub: { color: '#64748b', fontWeight: '800', textAlign: 'center' },
+
+  primaryBtn: {
+    marginTop: 8,
+    backgroundColor: '#0f172a',
+    borderRadius: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+  },
+  primaryBtnText: { color: '#fff', fontWeight: '900' },
+
+  bankWrap: { gap: 10 },
   bankCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 12,
-    marginHorizontal: 20,
-    marginBottom: 10,
+    backgroundColor: '#ffffff',
+    borderRadius: 18,
+    padding: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
     borderWidth: 1,
-    borderColor: '#e5e7eb',
+    borderColor: '#e2e8f0',
   },
   bankCardSelected: {
     borderColor: '#2563eb',
     backgroundColor: '#eff6ff',
   },
-  bankText: { fontWeight: '600', color: '#111827' },
-  bankSub: { color: '#6b7280', marginTop: 2 },
-  input: {
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    backgroundColor: '#fff',
-    marginHorizontal: 20,
-    marginBottom: 12,
-    color: '#111827',
-    fontSize: 15,
+  bankIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 16,
+    backgroundColor: '#f1f5f9',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  actionButton: { marginHorizontal: 20, marginBottom: 14 },
-  gradientButton: {
-    borderRadius: 10,
+  bankName: { fontWeight: '900', color: '#0f172a' },
+  bankMeta: { marginTop: 3, color: '#64748b', fontWeight: '800', fontSize: 12 },
+
+  amountBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginTop: 10,
+  },
+  currency: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: '#0f172a',
+    marginRight: 8,
+  },
+  amountInput: { flex: 1, fontSize: 18, fontWeight: '900', color: '#0f172a' },
+
+  hint: { marginTop: 8, color: '#94a3b8', fontWeight: '800' },
+
+  withdrawBtn: { marginTop: 12 },
+  withdrawBtnInner: {
+    borderRadius: 18,
+    paddingVertical: 14,
+    alignItems: 'center',
+    shadowColor: '#1d4ed8',
+    shadowOpacity: 0.18,
+    shadowRadius: 14,
+    elevation: 4,
+  },
+  withdrawText: { color: '#fff', fontWeight: '900', fontSize: 16 },
+
+  noHistory: {
+    marginTop: 10,
+    color: '#94a3b8',
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+
+  historyCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 18,
+    padding: 14,
+    marginTop: 10,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    shadowColor: '#000',
+    shadowOpacity: 0.06,
+    shadowRadius: 14,
+    elevation: 2,
+  },
+  historyAmount: { fontWeight: '900', color: '#0f172a', fontSize: 16 },
+  historyMeta: { marginTop: 4, color: '#64748b', fontWeight: '800' },
+  historyDate: {
+    marginTop: 2,
+    color: '#94a3b8',
+    fontWeight: '800',
+    fontSize: 12,
+  },
+
+  badge: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+  },
+  badgePending: { backgroundColor: '#fef9c3' },
+  badgeApproved: { backgroundColor: '#dcfce7' },
+  badgeRejected: { backgroundColor: '#fee2e2' },
+  badgeText: { fontWeight: '900' },
+
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15,23,42,0.35)',
+    justifyContent: 'flex-end',
+  },
+  sheet: {
+    backgroundColor: '#ffffff',
+    borderTopLeftRadius: 26,
+    borderTopRightRadius: 26,
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    paddingBottom: 22,
+  },
+  sheetHandle: {
+    width: 44,
+    height: 5,
+    borderRadius: 999,
+    backgroundColor: '#e2e8f0',
+    alignSelf: 'center',
+    marginBottom: 10,
+  },
+  sheetTitle: { fontSize: 16, fontWeight: '900', color: '#0f172a' },
+  sheetSub: { marginTop: 6, color: '#64748b', fontWeight: '800' },
+  sheetInput: {
+    marginTop: 12,
+    backgroundColor: '#f8fafc',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    color: '#0f172a',
+    fontWeight: '800',
+  },
+  sheetBtn: {
+    marginTop: 14,
+    backgroundColor: '#0f172a',
+    borderRadius: 16,
     paddingVertical: 14,
     alignItems: 'center',
   },
-  actionText: { color: '#fff', fontWeight: '600', fontSize: 16 },
-  withdrawCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 14,
-    marginHorizontal: 20,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+  sheetBtnText: { color: '#fff', fontWeight: '900' },
+  sheetCancel: {
+    marginTop: 10,
+    borderRadius: 16,
+    paddingVertical: 14,
+    alignItems: 'center',
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
   },
-  withdrawAmount: { fontWeight: '700', color: '#111827', fontSize: 16 },
-  withdrawBank: { color: '#6b7280', marginTop: 4 },
-  withdrawDate: { color: '#9ca3af', marginTop: 2 },
-  statusBadge: {
-    marginTop: 8,
-    alignSelf: 'flex-start',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  noBank: { color: '#6b7280', textAlign: 'center', marginTop: 10 },
+  sheetCancelText: { color: '#0f172a', fontWeight: '900' },
 })
