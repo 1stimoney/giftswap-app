@@ -101,13 +101,6 @@ export default function SecurityPage() {
   }
 
   // PIN items are placeholders for now
-  const handleResetPin = () => {
-    Alert.alert('Coming soon', 'We will build PIN logic for withdrawals next.')
-  }
-
-  const handleChangePin = () => {
-    Alert.alert('Coming soon', 'We will build PIN logic for withdrawals next.')
-  }
 
   const handleBiometricsToggle = (v: boolean) => {
     setBiometricsEnabled(v)
@@ -131,7 +124,7 @@ export default function SecurityPage() {
       <View style={styles.header}>
         <Pressable
           style={styles.backBtn}
-          onPress={() => router.push('/(tabs)/settings')}
+          onPress={() => router.replace('/(tabs)/settings')}
         >
           <Ionicons name='chevron-back' size={22} color='#0f172a' />
         </Pressable>
@@ -156,13 +149,13 @@ export default function SecurityPage() {
         <SecurityRow
           icon='alert-circle-outline'
           label='Reset Pin'
-          onPress={handleResetPin}
+          onPress={() => router.push('/security/reset-pin')}
         />
 
         <SecurityRow
           icon='grid-outline'
           label='Change Pin'
-          onPress={handleChangePin}
+          onPress={() => router.push('/security/change-pin')}
         />
 
         <SecurityRow

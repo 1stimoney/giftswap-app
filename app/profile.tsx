@@ -214,7 +214,7 @@ export default function ProfilePage() {
         <View style={styles.header}>
           <Pressable
             style={styles.backBtn}
-            onPress={() => router.push('/(tabs)/settings')}
+            onPress={() => router.replace('/(tabs)/settings')}
           >
             <Ionicons name='chevron-back' size={22} color='#0f172a' />
           </Pressable>
