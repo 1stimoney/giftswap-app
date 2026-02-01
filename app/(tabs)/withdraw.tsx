@@ -799,7 +799,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 16,
   },
-  manageText: { color: '#0f172a', fontWeight: '900' },
+  manageText: { color: '#0f172a', fontWeight: '800' },
 
   balanceCard: {
     marginHorizontal: 16,
@@ -891,8 +891,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  bankName: { fontWeight: '900', color: '#0f172a' },
-  bankMeta: { marginTop: 3, color: '#64748b', fontWeight: '800', fontSize: 12 },
+  bankName: { fontWeight: '700', color: '#0f172a' },
+  bankMeta: { marginTop: 3, color: '#64748b', fontWeight: '600', fontSize: 12 },
 
   amountBox: {
     flexDirection: 'row',
@@ -911,9 +911,9 @@ const styles = StyleSheet.create({
     color: '#0f172a',
     marginRight: 8,
   },
-  amountInput: { flex: 1, fontSize: 18, fontWeight: '900', color: '#0f172a' },
+  amountInput: { flex: 1, fontSize: 18, fontWeight: '600', color: '#0f172a' },
 
-  hint: { marginTop: 8, color: '#94a3b8', fontWeight: '800' },
+  hint: { marginTop: 8, color: '#94a3b8', fontWeight: '600' },
 
   withdrawBtn: { marginTop: 12 },
   withdrawBtnInner: {
@@ -947,7 +947,7 @@ const styles = StyleSheet.create({
     shadowRadius: 14,
     elevation: 2,
   },
-  historyAmount: { fontWeight: '900', color: '#0f172a', fontSize: 16 },
+  historyAmount: { fontWeight: '700', color: '#0f172a', fontSize: 16 },
   historyMeta: { marginTop: 4, color: '#64748b', fontWeight: '800' },
   historyDate: {
     marginTop: 2,
