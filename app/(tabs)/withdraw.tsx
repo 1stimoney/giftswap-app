@@ -452,7 +452,7 @@ export default function WithdrawPage() {
               Add a payout account to withdraw earnings.
             </Text>
             <TouchableOpacity
-              onPress={() => router.push('/banks' as any)}
+              onPress={() => router.push('/linked-accounts')}
               style={styles.primaryBtn}
             >
               <Text style={styles.primaryBtnText}>Add bank account</Text>
