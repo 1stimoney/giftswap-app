@@ -1,3 +1,4 @@
+import BiometricGate from '@/component/BiometricsGate'
 import { Slot } from 'expo-router'
 import { ActivityIndicator, StyleSheet, View } from 'react-native'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
@@ -7,7 +8,9 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <AuthProvider>
-        <Inner />
+        <BiometricGate>
+          <Inner />
+        </BiometricGate>
       </AuthProvider>
     </SafeAreaProvider>
   )

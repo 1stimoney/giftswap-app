@@ -161,15 +161,7 @@ export default function SecurityPage() {
         <SecurityRow
           icon='finger-print-outline'
           label='Biometrics'
-          right={
-            <Switch
-              value={biometricsEnabled}
-              onValueChange={handleBiometricsToggle}
-              trackColor={{ false: '#e2e8f0', true: '#16a34a' }}
-              thumbColor='#fff'
-            />
-          }
-          onPress={() => {}}
+          onPress={() => router.push('/security/biometrics')}
         />
 
         <SecurityRow

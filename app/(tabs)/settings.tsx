@@ -8,6 +8,7 @@ import {
   Image,
   Pressable,
   SafeAreaView,
+  ScrollView,
   StyleSheet,
   Switch,
   Text,
@@ -68,8 +69,8 @@ export default function SettingsTab() {
 
   const onToggleNotif = (v: boolean) => {
     setNotifEnabled(v)
-    // Later: you can call registerForPushAndSave() on ON
-    // and delete device token row on OFF if you want.
+    // Later: call registerForPushAndSave() when ON,
+    // and delete device token row when OFF if you want.
   }
 
   const handleLogout = async () => {
@@ -77,7 +78,6 @@ export default function SettingsTab() {
     router.replace('/(auth)/login')
   }
 
-  // ✅ Same logic you used before in profile: call Edge Function delete-account
   const confirmDeleteAccount = () => {
     if (deletingAccount) return
 
@@ -112,7 +112,6 @@ export default function SettingsTab() {
     try {
       setDeletingAccount(true)
 
-      // ✅ server-side delete (service role in function)
       const { data, error } = await supabase.functions.invoke(
         'delete-account',
         {
@@ -144,7 +143,7 @@ export default function SettingsTab() {
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.container}>
-        {/* Header */}
+        {/* Header (fixed) */}
         <View style={styles.header}>
           <Pressable style={styles.menuBtn} onPress={() => Alert.alert('Menu')}>
             <Ionicons name='menu' size={22} color='#0f172a' />
@@ -165,7 +164,13 @@ export default function SettingsTab() {
             <ActivityIndicator size='large' color='#2563eb' />
           </View>
         ) : (
-          <>
+          // ✅ Scrollable content
+          <ScrollView
+            style={{ flex: 1 }}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps='handled'
+          >
             {/* User card */}
             <View style={styles.userCard}>
               <View style={styles.userRow}>
@@ -255,7 +260,7 @@ export default function SettingsTab() {
                 onPress={() => Alert.alert('Support')}
               />
 
-              {/* ✅ Active Delete Account row */}
+              {/* Delete account */}
               <Pressable
                 style={[
                   styles.row,
@@ -279,8 +284,11 @@ export default function SettingsTab() {
               <Pressable style={styles.logoutBtn} onPress={handleLogout}>
                 <Text style={styles.logoutText}>Logout</Text>
               </Pressable>
+
+              {/* Bottom spacing so last button isn’t cut off */}
+              <View style={{ height: 18 }} />
             </View>
-          </>
+          </ScrollView>
         )}
       </View>
     </SafeAreaView>
@@ -319,6 +327,11 @@ const styles = StyleSheet.create({
   container: { flex: 1, paddingHorizontal: 18, paddingTop: 14 },
 
   loadingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+
+  // ✅ scroll content padding
+  scrollContent: {
+    paddingBottom: 18,
+  },
 
   header: {
     flexDirection: 'row',
@@ -419,15 +432,12 @@ const styles = StyleSheet.create({
 
   rightInline: { flexDirection: 'row', alignItems: 'center', gap: 10 },
 
-  // ✅ delete row styles
   deleteRow: {
     borderWidth: 1,
     borderColor: '#fee2e2',
     backgroundColor: '#fff1f2',
   },
-  deleteIconBox: {
-    backgroundColor: '#fee2e2',
-  },
+  deleteIconBox: { backgroundColor: '#fee2e2' },
   deleteText: { fontSize: 15, fontWeight: '900', color: '#b91c1c' },
 
   logoutBtn: {
