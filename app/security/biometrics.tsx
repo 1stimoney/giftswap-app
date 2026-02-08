@@ -3,17 +3,18 @@ import { supabase } from '@/lib/supabase'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
 import * as SecureStore from 'expo-secure-store'
+import { StatusBar } from 'expo-status-bar'
 import React, { useEffect, useMemo, useState } from 'react'
 import {
   Alert,
   Pressable,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Switch,
   Text,
   View,
 } from 'react-native'
+import { SafeAreaView } from 'react-native-safe-area-context'
 
 type SettingsRow = {
   biometric_login: boolean
@@ -170,6 +171,7 @@ export default function BiometricsPage() {
 
   return (
     <SafeAreaView style={styles.safe}>
+      <StatusBar style='dark' backgroundColor='#fff' />
       <View style={styles.container}>
         {/* Header */}
         <View style={styles.header}>

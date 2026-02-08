@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/supabase'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
+import { StatusBar } from 'expo-status-bar'
 import React, { useEffect, useMemo, useState } from 'react'
 import {
   ActivityIndicator,
@@ -9,13 +10,13 @@ import {
   Modal,
   Pressable,
   RefreshControl,
-  SafeAreaView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   View,
 } from 'react-native'
+import { SafeAreaView } from 'react-native-safe-area-context'
 
 type BankRow = {
   id: string
@@ -214,6 +215,7 @@ export default function BanksPage() {
 
   return (
     <SafeAreaView style={styles.safe}>
+      <StatusBar style='dark' backgroundColor='#fff' />
       {/* Header */}
       <View style={styles.header}>
         <Pressable
@@ -306,7 +308,7 @@ export default function BanksPage() {
                 onChangeText={(t) =>
                   setForm((p) => ({ ...p, account_name: t }))
                 }
-                placeholder='e.g. Sheriff Dauda'
+                placeholder='e.g. John Doe'
                 placeholderTextColor='#94a3b8'
                 style={styles.input}
               />

@@ -219,7 +219,8 @@ const styles = StyleSheet.create({
   },
 
   tabItemInnerActive: {
-    backgroundColor: '#ffffff', // active “bubble”
+    backgroundColor: '#ffffff',
+    borderRadius: 12, // active “bubble”
   },
 
   activeLabel: {

@@ -2,19 +2,20 @@ import { supabase } from '@/lib/supabase'
 import { Ionicons } from '@expo/vector-icons'
 import * as Crypto from 'expo-crypto'
 import { useRouter } from 'expo-router'
+import { StatusBar } from 'expo-status-bar'
 import React, { useEffect, useMemo, useState } from 'react'
 import {
   ActivityIndicator,
   Alert,
   Platform,
   Pressable,
-  SafeAreaView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   View,
 } from 'react-native'
+import { SafeAreaView } from 'react-native-safe-area-context'
 
 async function sha256(input: string) {
   return Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, input)
@@ -119,6 +120,7 @@ export default function ResetPinPage() {
 
   return (
     <SafeAreaView style={styles.safe}>
+      <StatusBar style='dark' backgroundColor='#fff' />
       <View style={styles.container}>
         {/* Header */}
         <View style={styles.header}>

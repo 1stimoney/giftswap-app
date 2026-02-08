@@ -5,6 +5,7 @@ import BottomSheet, {
   BottomSheetScrollView,
 } from '@gorhom/bottom-sheet'
 import { useRouter } from 'expo-router'
+import { StatusBar } from 'expo-status-bar'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ActivityIndicator,
@@ -17,6 +18,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native'
+import { SafeAreaView } from 'react-native-safe-area-context'
 
 type NotificationRow = {
   id: string
@@ -307,209 +309,215 @@ export default function NotificationsScreen() {
   }
 
   return (
-    <View style={styles.container}>
-      {/* Top header with back */}
-      <View style={styles.topBar}>
-        <TouchableOpacity
-          onPress={() => router.back()}
-          style={styles.backBtn}
-          activeOpacity={0.85}
-        >
-          <Ionicons name='chevron-back' size={22} color='#111827' />
-        </TouchableOpacity>
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#f9fafb' }}>
+      <StatusBar style='dark' backgroundColor='#fff' />
+      <View style={styles.container}>
+        {/* Top header with back */}
+        <View style={styles.topBar}>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={styles.backBtn}
+            activeOpacity={0.85}
+          >
+            <Ionicons name='chevron-back' size={22} color='#111827' />
+          </TouchableOpacity>
 
-        <Text style={styles.screenTitle}>Notifications</Text>
+          <Text style={styles.screenTitle}>Notifications</Text>
 
-        <View style={styles.unreadPill}>
-          <Text style={styles.unreadText}>{unreadCount} unread</Text>
-        </View>
-      </View>
-
-      {items.length === 0 ? (
-        <View style={styles.center}>
-          <Ionicons
-            name='notifications-off-outline'
-            size={34}
-            color='#9ca3af'
-          />
-          <Text style={{ color: '#6b7280', marginTop: 10 }}>
-            No notifications yet.
-          </Text>
-        </View>
-      ) : (
-        <FlatList
-          data={items}
-          keyExtractor={(i) => i.id}
-          renderItem={renderItem}
-          contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              colors={['#2563eb']}
-            />
-          }
-        />
-      )}
-
-      {/* Bottom sheet details modal */}
-      <BottomSheet
-        ref={sheetRef}
-        index={-1}
-        snapPoints={snapPoints}
-        enablePanDownToClose // swipe down to close
-        backdropComponent={backdrop}
-        handleIndicatorStyle={{ backgroundColor: '#d1d5db' }}
-        backgroundStyle={{ backgroundColor: '#ffffff', borderRadius: 22 }}
-      >
-        <BottomSheetScrollView
-          contentContainerStyle={{ padding: 16, paddingBottom: 30 }}
-        >
-          {/* Header */}
-          <View style={styles.sheetHeader}>
-            <View style={styles.sheetIconBubble}>
-              <Ionicons
-                name={getTypeIcon(activeNotif?.type) as any}
-                size={18}
-                color='#2563eb'
-              />
-            </View>
-
-            <View style={{ flex: 1 }}>
-              <Text style={styles.sheetTitle}>
-                {activeNotif?.title || 'Notification'}
-              </Text>
-              <Text style={styles.sheetSub}>
-                {activeNotif?.created_at
-                  ? new Date(activeNotif.created_at).toLocaleString()
-                  : ''}
-              </Text>
-            </View>
-
-            <TouchableOpacity
-              onPress={closeSheet}
-              style={styles.closeBtn}
-              activeOpacity={0.85}
-            >
-              <Ionicons name='close' size={18} color='#111827' />
-            </TouchableOpacity>
+          <View style={styles.unreadPill}>
+            <Text style={styles.unreadText}>{unreadCount} unread</Text>
           </View>
+        </View>
 
-          {/* Message */}
-          {activeNotif?.message ? (
-            <View style={styles.block}>
-              <Text style={styles.blockTitle}>Message</Text>
-              <Text style={styles.blockText}>{activeNotif.message}</Text>
-            </View>
-          ) : null}
-
-          {detailLoading ? (
-            <View style={[styles.block, { alignItems: 'center' }]}>
-              <ActivityIndicator color='#2563eb' />
-              <Text style={{ color: '#6b7280', marginTop: 10 }}>
-                Loading details...
-              </Text>
-            </View>
-          ) : null}
-
-          {/* Trade */}
-          {trade && !detailLoading && (
-            <View style={styles.block}>
-              <Text style={styles.blockTitle}>Trade Details</Text>
-
-              <Row k='Card' v={trade.card_name} />
-              <Row k='Amount' v={`$${trade.amount_usd}`} />
-              <Row k='Rate' v={`₦${trade.rate}/$`} />
-              <Row k='Total' v={`₦${Number(trade.total).toLocaleString()}`} />
-              <Row
-                k='Status'
-                v={trade.status}
-                valueStyle={{
-                  color: statusColor(trade.status),
-                  textTransform: 'capitalize',
-                }}
+        {items.length === 0 ? (
+          <View style={styles.center}>
+            <Ionicons
+              name='notifications-off-outline'
+              size={34}
+              color='#9ca3af'
+            />
+            <Text style={{ color: '#6b7280', marginTop: 10 }}>
+              No notifications yet.
+            </Text>
+          </View>
+        ) : (
+          <FlatList
+            data={items}
+            keyExtractor={(i) => i.id}
+            renderItem={renderItem}
+            contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                colors={['#2563eb']}
               />
+            }
+          />
+        )}
 
-              {tradeUserImages.length > 0 && (
-                <>
-                  <Text style={[styles.blockTitle, { marginTop: 14 }]}>
-                    Submitted Photos
-                  </Text>
-                  <ScrollImages
-                    urls={tradeUserImages}
-                    onPress={(u) => setSelectedImage(u)}
-                  />
-                </>
-              )}
+        {/* Bottom sheet details modal */}
+        <BottomSheet
+          ref={sheetRef}
+          index={-1}
+          snapPoints={snapPoints}
+          enablePanDownToClose // swipe down to close
+          backdropComponent={backdrop}
+          handleIndicatorStyle={{ backgroundColor: '#d1d5db' }}
+          backgroundStyle={{ backgroundColor: '#ffffff', borderRadius: 22 }}
+        >
+          <BottomSheetScrollView
+            contentContainerStyle={{ padding: 16, paddingBottom: 30 }}
+          >
+            {/* Header */}
+            <View style={styles.sheetHeader}>
+              <View style={styles.sheetIconBubble}>
+                <Ionicons
+                  name={getTypeIcon(activeNotif?.type) as any}
+                  size={18}
+                  color='#2563eb'
+                />
+              </View>
 
-              {tradeProofImages.length > 0 && (
-                <>
-                  <Text style={[styles.blockTitle, { marginTop: 14 }]}>
-                    Admin Proof Photos
-                  </Text>
-                  <ScrollImages
-                    urls={tradeProofImages}
-                    onPress={(u) => setSelectedImage(u)}
-                  />
-                </>
-              )}
+              <View style={{ flex: 1 }}>
+                <Text style={styles.sheetTitle}>
+                  {activeNotif?.title || 'Notification'}
+                </Text>
+                <Text style={styles.sheetSub}>
+                  {activeNotif?.created_at
+                    ? new Date(activeNotif.created_at).toLocaleString()
+                    : ''}
+                </Text>
+              </View>
+
+              <TouchableOpacity
+                onPress={closeSheet}
+                style={styles.closeBtn}
+                activeOpacity={0.85}
+              >
+                <Ionicons name='close' size={18} color='#111827' />
+              </TouchableOpacity>
             </View>
-          )}
 
-          {/* Withdrawal */}
-          {withdrawal && !detailLoading && (
-            <View style={styles.block}>
-              <Text style={styles.blockTitle}>Withdrawal Details</Text>
+            {/* Message */}
+            {activeNotif?.message ? (
+              <View style={styles.block}>
+                <Text style={styles.blockTitle}>Message</Text>
+                <Text style={styles.blockText}>{activeNotif.message}</Text>
+              </View>
+            ) : null}
 
-              <Row
-                k='Amount'
-                v={`₦${Number(withdrawal.amount).toLocaleString()}`}
-              />
-              <Row
-                k='Status'
-                v={withdrawal.status}
-                valueStyle={{
-                  color: statusColor(withdrawal.status),
-                  textTransform: 'capitalize',
-                }}
-              />
+            {detailLoading ? (
+              <View style={[styles.block, { alignItems: 'center' }]}>
+                <ActivityIndicator color='#2563eb' />
+                <Text style={{ color: '#6b7280', marginTop: 10 }}>
+                  Loading details...
+                </Text>
+              </View>
+            ) : null}
 
-              {withdrawalProofImages.length > 0 && (
-                <>
-                  <Text style={[styles.blockTitle, { marginTop: 14 }]}>
-                    Admin Proof Photos
-                  </Text>
-                  <ScrollImages
-                    urls={withdrawalProofImages}
-                    onPress={(u) => setSelectedImage(u)}
-                  />
-                </>
-              )}
-            </View>
-          )}
+            {/* Trade */}
+            {trade && !detailLoading && (
+              <View style={styles.block}>
+                <Text style={styles.blockTitle}>Trade Details</Text>
 
-          {/* Rejection reason */}
-          {showRejected && !detailLoading && (
-            <View
-              style={[
-                styles.block,
-                { borderColor: '#fecaca', backgroundColor: '#fff1f2' },
-              ]}
-            >
-              <Text style={[styles.blockTitle, { color: '#991b1b' }]}>
-                Rejection Reason
-              </Text>
-              <Text style={[styles.blockText, { color: '#7f1d1d' }]}>
-                {rejectReason || 'No reason provided.'}
-              </Text>
-            </View>
-          )}
-        </BottomSheetScrollView>
-      </BottomSheet>
+                <Row k='Card' v={trade.card_name} />
+                <Row k='Amount' v={`$${trade.amount_usd}`} />
+                <Row k='Rate' v={`₦${trade.rate}/$`} />
+                <Row k='Total' v={`₦${Number(trade.total).toLocaleString()}`} />
+                <Row
+                  k='Status'
+                  v={trade.status}
+                  valueStyle={{
+                    color: statusColor(trade.status),
+                    textTransform: 'capitalize',
+                  }}
+                />
 
-      {/* Image Preview (simple overlay) */}
-      <ModalImage url={selectedImage} onClose={() => setSelectedImage(null)} />
-    </View>
+                {tradeUserImages.length > 0 && (
+                  <>
+                    <Text style={[styles.blockTitle, { marginTop: 14 }]}>
+                      Submitted Photos
+                    </Text>
+                    <ScrollImages
+                      urls={tradeUserImages}
+                      onPress={(u) => setSelectedImage(u)}
+                    />
+                  </>
+                )}
+
+                {tradeProofImages.length > 0 && (
+                  <>
+                    <Text style={[styles.blockTitle, { marginTop: 14 }]}>
+                      Admin Proof Photos
+                    </Text>
+                    <ScrollImages
+                      urls={tradeProofImages}
+                      onPress={(u) => setSelectedImage(u)}
+                    />
+                  </>
+                )}
+              </View>
+            )}
+
+            {/* Withdrawal */}
+            {withdrawal && !detailLoading && (
+              <View style={styles.block}>
+                <Text style={styles.blockTitle}>Withdrawal Details</Text>
+
+                <Row
+                  k='Amount'
+                  v={`₦${Number(withdrawal.amount).toLocaleString()}`}
+                />
+                <Row
+                  k='Status'
+                  v={withdrawal.status}
+                  valueStyle={{
+                    color: statusColor(withdrawal.status),
+                    textTransform: 'capitalize',
+                  }}
+                />
+
+                {withdrawalProofImages.length > 0 && (
+                  <>
+                    <Text style={[styles.blockTitle, { marginTop: 14 }]}>
+                      Admin Proof Photos
+                    </Text>
+                    <ScrollImages
+                      urls={withdrawalProofImages}
+                      onPress={(u) => setSelectedImage(u)}
+                    />
+                  </>
+                )}
+              </View>
+            )}
+
+            {/* Rejection reason */}
+            {showRejected && !detailLoading && (
+              <View
+                style={[
+                  styles.block,
+                  { borderColor: '#fecaca', backgroundColor: '#fff1f2' },
+                ]}
+              >
+                <Text style={[styles.blockTitle, { color: '#991b1b' }]}>
+                  Rejection Reason
+                </Text>
+                <Text style={[styles.blockText, { color: '#7f1d1d' }]}>
+                  {rejectReason || 'No reason provided.'}
+                </Text>
+              </View>
+            )}
+          </BottomSheetScrollView>
+        </BottomSheet>
+
+        {/* Image Preview (simple overlay) */}
+        <ModalImage
+          url={selectedImage}
+          onClose={() => setSelectedImage(null)}
+        />
+      </View>
+    </SafeAreaView>
   )
 }
 

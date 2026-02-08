@@ -1,19 +1,21 @@
 import { supabase } from '@/lib/supabase'
+import { FLOATING_TAB_HEIGHT } from '@/lib/ui'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
+import { StatusBar } from 'expo-status-bar'
 import React, { useEffect, useMemo, useState } from 'react'
 import {
   ActivityIndicator,
   Alert,
   Image,
   Pressable,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Switch,
   Text,
   View,
 } from 'react-native'
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 
 type Profile = {
   id: string
@@ -25,6 +27,8 @@ type Profile = {
 
 export default function SettingsTab() {
   const router = useRouter()
+  const insets = useSafeAreaInsets()
+  const bottomSpace = FLOATING_TAB_HEIGHT + insets.bottom + 12
 
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
@@ -34,8 +38,9 @@ export default function SettingsTab() {
   // ✅ delete state
   const [deletingAccount, setDeletingAccount] = useState(false)
 
-  const userLevel = useMemo(() => 2, [])
-  const progress = useMemo(() => 0.55, [])
+  // ✅ auth info for email + created_at
+  const [authEmail, setAuthEmail] = useState<string>('')
+  const [memberSince, setMemberSince] = useState<string>('')
 
   const fetchProfile = async () => {
     try {
@@ -43,9 +48,17 @@ export default function SettingsTab() {
       const {
         data: { user },
       } = await supabase.auth.getUser()
+
       if (!user) {
         setProfile(null)
+        setAuthEmail('')
+        setMemberSince('')
         return
+      }
+
+      setAuthEmail(user.email ?? '')
+      if (user.created_at) {
+        setMemberSince(new Date(user.created_at).toLocaleDateString())
       }
 
       const { data, error } = await supabase
@@ -140,13 +153,26 @@ export default function SettingsTab() {
 
   const name = profile?.username || profile?.full_name || 'User'
 
+  const statusLabel = useMemo(() => {
+    if (profile?.is_suspended) return 'Suspended'
+    return 'Active'
+  }, [profile?.is_suspended])
+
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#f8fafc' }}>
+      <StatusBar style='dark' backgroundColor='#fff' />
       <View style={styles.container}>
         {/* Header (fixed) */}
         <View style={styles.header}>
-          <Pressable style={styles.menuBtn} onPress={() => Alert.alert('Menu')}>
-            <Ionicons name='menu' size={22} color='#0f172a' />
+          <Pressable
+            style={styles.menuBtn}
+            onPress={() => router.push('/chat')}
+          >
+            <Ionicons
+              name='chatbubble-ellipses-outline'
+              size={22}
+              color='#0f172a'
+            />
           </Pressable>
 
           <Text style={styles.headerTitle}>Settings</Text>
@@ -164,10 +190,9 @@ export default function SettingsTab() {
             <ActivityIndicator size='large' color='#2563eb' />
           </View>
         ) : (
-          // ✅ Scrollable content
           <ScrollView
             style={{ flex: 1 }}
-            contentContainerStyle={styles.scrollContent}
+            contentContainerStyle={{ paddingBottom: bottomSpace }}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps='handled'
           >
@@ -188,23 +213,59 @@ export default function SettingsTab() {
                 <View style={{ flex: 1 }}>
                   <Text style={styles.usernameText}>{name}</Text>
 
-                  <View style={styles.progressWrap}>
-                    <View style={styles.progressTrack}>
+                  {/* ✅ Replaces level/progress */}
+                  <View style={styles.metaWrap}>
+                    {!!authEmail ? (
+                      <Text style={styles.metaText} numberOfLines={1}>
+                        {authEmail}
+                      </Text>
+                    ) : null}
+
+                    <View style={styles.metaRow}>
+                      {!!memberSince ? (
+                        <View style={styles.pill}>
+                          <Ionicons
+                            name='calendar-outline'
+                            size={14}
+                            color='#0f172a'
+                          />
+                          <Text style={styles.pillText}>
+                            Since {memberSince}
+                          </Text>
+                        </View>
+                      ) : null}
+
                       <View
                         style={[
-                          styles.progressFill,
-                          {
-                            width: `${
-                              Math.max(0, Math.min(1, progress)) * 100
-                            }%`,
-                          },
+                          styles.pill,
+                          profile?.is_suspended
+                            ? styles.pillWarn
+                            : styles.pillOk,
                         ]}
-                      />
+                      >
+                        <Ionicons
+                          name={
+                            profile?.is_suspended
+                              ? 'warning-outline'
+                              : 'checkmark-circle-outline'
+                          }
+                          size={14}
+                          color={profile?.is_suspended ? '#b45309' : '#166534'}
+                        />
+                        <Text
+                          style={[
+                            styles.pillText,
+                            {
+                              color: profile?.is_suspended
+                                ? '#b45309'
+                                : '#166534',
+                            },
+                          ]}
+                        >
+                          {statusLabel}
+                        </Text>
+                      </View>
                     </View>
-
-                    <Text style={styles.levelText}>
-                      User level: {userLevel}
-                    </Text>
                   </View>
                 </View>
               </View>
@@ -257,7 +318,7 @@ export default function SettingsTab() {
               <SettingsRow
                 icon='chatbubble-ellipses-outline'
                 label='Chat with us'
-                onPress={() => Alert.alert('Support')}
+                onPress={() => router.push('/chat')}
               />
 
               {/* Delete account */}
@@ -285,7 +346,6 @@ export default function SettingsTab() {
                 <Text style={styles.logoutText}>Logout</Text>
               </Pressable>
 
-              {/* Bottom spacing so last button isn’t cut off */}
               <View style={{ height: 18 }} />
             </View>
           </ScrollView>
@@ -323,15 +383,8 @@ function SettingsRow({
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#f8fafc' },
   container: { flex: 1, paddingHorizontal: 18, paddingTop: 14 },
-
   loadingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-
-  // ✅ scroll content padding
-  scrollContent: {
-    paddingBottom: 18,
-  },
 
   header: {
     flexDirection: 'row',
@@ -351,7 +404,7 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     elevation: 2,
   },
-  headerTitle: { fontSize: 18, fontWeight: '800', color: '#0f172a' },
+  headerTitle: { fontSize: 18, fontWeight: '700', color: '#0f172a' },
   mailBtn: {
     width: 44,
     height: 44,
@@ -386,22 +439,25 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   avatarImg: { width: '100%', height: '100%' },
-  usernameText: { fontSize: 16, fontWeight: '800', color: '#0f172a' },
 
-  progressWrap: { marginTop: 8 },
-  progressTrack: {
-    height: 8,
+  usernameText: { fontSize: 16, fontWeight: '700', color: '#0f172a' },
+
+  metaWrap: { marginTop: 6 },
+  metaText: { fontSize: 12.5, color: '#64748b', fontWeight: '400' },
+  metaRow: { flexDirection: 'row', gap: 8, marginTop: 10, flexWrap: 'wrap' },
+
+  pill: {
+    flexDirection: 'row',
+    gap: 6,
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     borderRadius: 999,
-    backgroundColor: '#e2e8f0',
-    overflow: 'hidden',
+    backgroundColor: '#f1f5f9',
   },
-  progressFill: { height: 8, borderRadius: 999, backgroundColor: '#16a34a' },
-  levelText: {
-    marginTop: 8,
-    fontSize: 12,
-    color: '#64748b',
-    fontWeight: '700',
-  },
+  pillOk: { backgroundColor: '#dcfce7' },
+  pillWarn: { backgroundColor: '#fffbeb' },
+  pillText: { fontSize: 12, fontWeight: '400', color: '#0f172a' },
 
   list: { gap: 12 },
 
@@ -427,9 +483,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  rowText: { fontSize: 15, fontWeight: '800', color: '#0f172a' },
+  rowText: { fontSize: 15, fontWeight: '600', color: '#0f172a' },
   rowRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-
   rightInline: { flexDirection: 'row', alignItems: 'center', gap: 10 },
 
   deleteRow: {
@@ -438,7 +493,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff1f2',
   },
   deleteIconBox: { backgroundColor: '#fee2e2' },
-  deleteText: { fontSize: 15, fontWeight: '900', color: '#b91c1c' },
+  deleteText: { fontSize: 15, fontWeight: '600', color: '#b91c1c' },
 
   logoutBtn: {
     marginTop: 8,
@@ -447,5 +502,5 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     alignItems: 'center',
   },
-  logoutText: { color: '#ffffff', fontWeight: '800' },
+  logoutText: { color: '#ffffff', fontWeight: '700' },
 })

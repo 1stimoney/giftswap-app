@@ -3,6 +3,7 @@ import { Ionicons } from '@expo/vector-icons'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { LinearGradient } from 'expo-linear-gradient'
 import { useRouter } from 'expo-router'
+import { StatusBar } from 'expo-status-bar'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ActivityIndicator,
@@ -15,6 +16,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native'
+import { SafeAreaView } from 'react-native-safe-area-context'
 import { supabase } from '../../lib/supabase'
 
 const BALANCE_VIS_KEY = 'giftswap.balance.visible'
@@ -282,232 +284,235 @@ export default function Home() {
   }
 
   return (
-    <RefreshScrollView refreshing={refreshing} onRefresh={onRefresh}>
-      <ScrollView
-        style={styles.container}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
-      >
-        {/* Header */}
-        <View style={styles.header}>
-          <View>
-            <Text style={styles.welcome}>Welcome back</Text>
-            <Text style={styles.username}>{username}</Text>
-          </View>
-
-          <View style={styles.headerRight}>
-            <TouchableOpacity
-              onPress={() => router.push('/notifications')}
-              activeOpacity={0.8}
-              style={styles.iconBtn}
-            >
-              <Ionicons
-                name='notifications-outline'
-                size={22}
-                color='#0f172a'
-              />
-              {unreadCount > 0 && (
-                <View style={styles.badge}>
-                  <Text style={styles.badgeText}>
-                    {unreadCount > 99 ? '99+' : unreadCount}
-                  </Text>
-                </View>
-              )}
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              onPress={() => router.push('/profile')}
-              activeOpacity={0.8}
-              style={styles.iconBtn}
-            >
-              <Ionicons name='person-outline' size={22} color='#0f172a' />
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Balance Card */}
-        <LinearGradient
-          colors={['#0B1220', '#0F1B35', '#102A64']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.balanceCard}
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#f8fafc' }}>
+      <StatusBar style='dark' backgroundColor='#fff' />
+      <RefreshScrollView refreshing={refreshing} onRefresh={onRefresh}>
+        <ScrollView
+          style={styles.container}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
         >
-          <View style={styles.balanceTop}>
-            <Text style={styles.balanceLabel}>Available Balance</Text>
-
-            <TouchableOpacity onPress={toggleBalance} style={styles.eyeBtn}>
-              <Ionicons
-                name={balanceVisible ? 'eye-outline' : 'eye-off-outline'}
-                size={18}
-                color='#E2E8F0'
-              />
-              <Text style={styles.eyeText}>
-                {balanceVisible ? 'Hide' : 'Show'}
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          <Text style={styles.balanceValue}>
-            {balanceVisible ? `₦${balance.toLocaleString()}` : '₦••••••'}
-          </Text>
-
-          <View style={styles.balanceFooter}>
-            <View style={styles.miniStat}>
-              <Text style={styles.miniStatLabel}>Trades</Text>
-              <Text style={styles.miniStatValue}>
-                {transactions.filter((t) => t.type === 'Trade').length}
-              </Text>
+          {/* Header */}
+          <View style={styles.header}>
+            <View>
+              <Text style={styles.welcome}>Welcome back</Text>
+              <Text style={styles.username}>{username}</Text>
             </View>
-            <View style={styles.miniDivider} />
-            <View style={styles.miniStat}>
-              <Text style={styles.miniStatLabel}>Withdrawals</Text>
-              <Text style={styles.miniStatValue}>
-                {transactions.filter((t) => t.type === 'Withdrawal').length}
-              </Text>
-            </View>
-          </View>
-        </LinearGradient>
 
-        {/* Quick Actions */}
-        <View style={styles.quickRow}>
-          <QuickAction
-            title='Trade'
-            subtitle='Sell gift cards'
-            icon='swap-horizontal-outline'
-            colorBg='#EEF2FF'
-            colorIcon='#4F46E5'
-            onPress={() => router.push('/trade')}
-          />
-          <QuickAction
-            title='Withdraw'
-            subtitle='Cash out balance'
-            icon='cash-outline'
-            colorBg='#ECFDF5'
-            colorIcon='#16A34A'
-            onPress={() => router.push('/withdraw')}
-          />
-          <QuickAction
-            title='Banks'
-            subtitle='Manage accounts'
-            icon='card-outline'
-            colorBg='#EFF6FF'
-            colorIcon='#2563EB'
-            onPress={() => router.push('/linked-accounts')}
-          />
-        </View>
-
-        {/* Transactions */}
-        <View style={styles.sectionHead}>
-          <Text style={styles.sectionTitle}>Recent activity</Text>
-          <TouchableOpacity onPress={onRefresh} activeOpacity={0.7}>
-            <Text style={styles.sectionLink}>Refresh</Text>
-          </TouchableOpacity>
-        </View>
-
-        {transactions.length === 0 ? (
-          <View style={styles.emptyBox}>
-            <Ionicons name='time-outline' size={22} color='#94A3B8' />
-            <Text style={styles.emptyTitle}>No activity yet</Text>
-            <Text style={styles.emptySub}>
-              Your trades and withdrawals will appear here.
-            </Text>
-          </View>
-        ) : (
-          <FlatList
-            data={transactions}
-            renderItem={renderTransaction}
-            keyExtractor={(item) => String(item.id)}
-            scrollEnabled={false}
-            onEndReached={loadMore}
-            onEndReachedThreshold={0.2}
-            ListFooterComponent={
-              hasMore ? (
-                <ActivityIndicator
-                  style={{ marginVertical: 10 }}
-                  color='#2563eb'
+            <View style={styles.headerRight}>
+              <TouchableOpacity
+                onPress={() => router.push('/notifications')}
+                activeOpacity={0.8}
+                style={styles.iconBtn}
+              >
+                <Ionicons
+                  name='notifications-outline'
+                  size={22}
+                  color='#0f172a'
                 />
-              ) : null
-            }
-          />
-        )}
-
-        {/* Transaction Modal */}
-        <Modal
-          visible={!!selectedTransaction}
-          transparent
-          animationType='slide'
-          onRequestClose={() => setSelectedTransaction(null)}
-        >
-          <TouchableOpacity
-            activeOpacity={1}
-            onPress={() => setSelectedTransaction(null)}
-            style={styles.modalOverlay}
-          >
-            <TouchableOpacity activeOpacity={1} style={styles.modalSheet}>
-              <View style={styles.modalHandle} />
-              <Text style={styles.modalTitle}>Transaction details</Text>
-
-              {selectedTransaction && (
-                <View style={{ marginTop: 10, gap: 10 }}>
-                  <Row label='Type' value={selectedTransaction.type} />
-                  <Row
-                    label='Amount'
-                    value={`₦${Number(
-                      selectedTransaction.amount || 0
-                    ).toLocaleString()}`}
-                  />
-                  <Row
-                    label='Status'
-                    value={String(selectedTransaction.status).toLowerCase()}
-                  />
-                  <Row
-                    label='Date'
-                    value={new Date(
-                      selectedTransaction.created_at
-                    ).toLocaleString()}
-                  />
-
-                  {selectedTransaction.type === 'Trade' && (
-                    <>
-                      <Row
-                        label='Card'
-                        value={selectedTransaction.card_type || 'N/A'}
-                      />
-                      <Row
-                        label='Rate'
-                        value={
-                          selectedTransaction.rate
-                            ? `₦${selectedTransaction.rate}/$`
-                            : 'N/A'
-                        }
-                      />
-                      <Row
-                        label='Card amount'
-                        value={
-                          selectedTransaction.amount_usd
-                            ? `$${selectedTransaction.amount_usd}`
-                            : 'N/A'
-                        }
-                      />
-                    </>
-                  )}
-                </View>
-              )}
+                {unreadCount > 0 && (
+                  <View style={styles.badge}>
+                    <Text style={styles.badgeText}>
+                      {unreadCount > 99 ? '99+' : unreadCount}
+                    </Text>
+                  </View>
+                )}
+              </TouchableOpacity>
 
               <TouchableOpacity
-                style={styles.closeBtn}
-                onPress={() => setSelectedTransaction(null)}
+                onPress={() => router.push('/profile')}
+                activeOpacity={0.8}
+                style={styles.iconBtn}
               >
-                <Text style={styles.closeBtnText}>Close</Text>
+                <Ionicons name='person-outline' size={22} color='#0f172a' />
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Balance Card */}
+          <LinearGradient
+            colors={['#0B1220', '#0F1B35', '#102A64']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.balanceCard}
+          >
+            <View style={styles.balanceTop}>
+              <Text style={styles.balanceLabel}>Available Balance</Text>
+
+              <TouchableOpacity onPress={toggleBalance} style={styles.eyeBtn}>
+                <Ionicons
+                  name={balanceVisible ? 'eye-outline' : 'eye-off-outline'}
+                  size={18}
+                  color='#E2E8F0'
+                />
+                <Text style={styles.eyeText}>
+                  {balanceVisible ? 'Hide' : 'Show'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.balanceValue}>
+              {balanceVisible ? `₦${balance.toLocaleString()}` : '₦••••••'}
+            </Text>
+
+            <View style={styles.balanceFooter}>
+              <View style={styles.miniStat}>
+                <Text style={styles.miniStatLabel}>Trades</Text>
+                <Text style={styles.miniStatValue}>
+                  {transactions.filter((t) => t.type === 'Trade').length}
+                </Text>
+              </View>
+              <View style={styles.miniDivider} />
+              <View style={styles.miniStat}>
+                <Text style={styles.miniStatLabel}>Withdrawals</Text>
+                <Text style={styles.miniStatValue}>
+                  {transactions.filter((t) => t.type === 'Withdrawal').length}
+                </Text>
+              </View>
+            </View>
+          </LinearGradient>
+
+          {/* Quick Actions */}
+          <View style={styles.quickRow}>
+            <QuickAction
+              title='Trade'
+              subtitle='Sell gift cards'
+              icon='swap-horizontal-outline'
+              colorBg='#EEF2FF'
+              colorIcon='#4F46E5'
+              onPress={() => router.push('/trade')}
+            />
+            <QuickAction
+              title='Withdraw'
+              subtitle='Cash out balance'
+              icon='cash-outline'
+              colorBg='#ECFDF5'
+              colorIcon='#16A34A'
+              onPress={() => router.push('/withdraw')}
+            />
+            <QuickAction
+              title='Banks'
+              subtitle='Manage accounts'
+              icon='card-outline'
+              colorBg='#EFF6FF'
+              colorIcon='#2563EB'
+              onPress={() => router.push('/linked-accounts')}
+            />
+          </View>
+
+          {/* Transactions */}
+          <View style={styles.sectionHead}>
+            <Text style={styles.sectionTitle}>Recent activity</Text>
+            <TouchableOpacity onPress={onRefresh} activeOpacity={0.7}>
+              <Text style={styles.sectionLink}>Refresh</Text>
+            </TouchableOpacity>
+          </View>
+
+          {transactions.length === 0 ? (
+            <View style={styles.emptyBox}>
+              <Ionicons name='time-outline' size={22} color='#94A3B8' />
+              <Text style={styles.emptyTitle}>No activity yet</Text>
+              <Text style={styles.emptySub}>
+                Your trades and withdrawals will appear here.
+              </Text>
+            </View>
+          ) : (
+            <FlatList
+              data={transactions}
+              renderItem={renderTransaction}
+              keyExtractor={(item) => String(item.id)}
+              scrollEnabled={false}
+              onEndReached={loadMore}
+              onEndReachedThreshold={0.2}
+              ListFooterComponent={
+                hasMore ? (
+                  <ActivityIndicator
+                    style={{ marginVertical: 10 }}
+                    color='#2563eb'
+                  />
+                ) : null
+              }
+            />
+          )}
+
+          {/* Transaction Modal */}
+          <Modal
+            visible={!!selectedTransaction}
+            transparent
+            animationType='slide'
+            onRequestClose={() => setSelectedTransaction(null)}
+          >
+            <TouchableOpacity
+              activeOpacity={1}
+              onPress={() => setSelectedTransaction(null)}
+              style={styles.modalOverlay}
+            >
+              <TouchableOpacity activeOpacity={1} style={styles.modalSheet}>
+                <View style={styles.modalHandle} />
+                <Text style={styles.modalTitle}>Transaction details</Text>
+
+                {selectedTransaction && (
+                  <View style={{ marginTop: 10, gap: 10 }}>
+                    <Row label='Type' value={selectedTransaction.type} />
+                    <Row
+                      label='Amount'
+                      value={`₦${Number(
+                        selectedTransaction.amount || 0
+                      ).toLocaleString()}`}
+                    />
+                    <Row
+                      label='Status'
+                      value={String(selectedTransaction.status).toLowerCase()}
+                    />
+                    <Row
+                      label='Date'
+                      value={new Date(
+                        selectedTransaction.created_at
+                      ).toLocaleString()}
+                    />
+
+                    {selectedTransaction.type === 'Trade' && (
+                      <>
+                        <Row
+                          label='Card'
+                          value={selectedTransaction.card_type || 'N/A'}
+                        />
+                        <Row
+                          label='Rate'
+                          value={
+                            selectedTransaction.rate
+                              ? `₦${selectedTransaction.rate}/$`
+                              : 'N/A'
+                          }
+                        />
+                        <Row
+                          label='Card amount'
+                          value={
+                            selectedTransaction.amount_usd
+                              ? `$${selectedTransaction.amount_usd}`
+                              : 'N/A'
+                          }
+                        />
+                      </>
+                    )}
+                  </View>
+                )}
+
+                <TouchableOpacity
+                  style={styles.closeBtn}
+                  onPress={() => setSelectedTransaction(null)}
+                >
+                  <Text style={styles.closeBtnText}>Close</Text>
+                </TouchableOpacity>
               </TouchableOpacity>
             </TouchableOpacity>
-          </TouchableOpacity>
-        </Modal>
+          </Modal>
 
-        <View style={{ height: 24 }} />
-      </ScrollView>
-    </RefreshScrollView>
+          <View style={{ height: 24 }} />
+        </ScrollView>
+      </RefreshScrollView>
+    </SafeAreaView>
   )
 }
 
