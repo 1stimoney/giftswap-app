@@ -7,8 +7,11 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import {
   ActivityIndicator,
   Alert,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Switch,
   Text,
@@ -55,7 +58,7 @@ export default function SecurityPage() {
   const otpValue = useMemo(() => otpDigits.join(''), [otpDigits])
   const otpComplete = useMemo(
     () => otpDigits.every((d) => d.length === 1),
-    [otpDigits]
+    [otpDigits],
   )
 
   const [cooldown, setCooldown] = useState(0)
@@ -271,7 +274,7 @@ export default function SecurityPage() {
           withdraw_2fa_enabled: true,
           withdraw_2fa_verified_at: new Date().toISOString(),
         },
-        { onConflict: 'user_id' }
+        { onConflict: 'user_id' },
       )
 
       setWithdraw2FA(true)
@@ -354,7 +357,6 @@ export default function SecurityPage() {
   return (
     <SafeAreaView style={styles.safe}>
       <StatusBar style='dark' backgroundColor='#fff' />
-
       {/* Header */}
       <View style={styles.header}>
         <Pressable
@@ -367,11 +369,9 @@ export default function SecurityPage() {
         <Text style={styles.headerTitle}>Security</Text>
         <View style={{ width: 44 }} />
       </View>
-
       <Text style={styles.subText}>
         The safety of your account is our priority 🪪
       </Text>
-
       <View style={styles.card}>
         <SecurityRow
           icon='key-outline'
@@ -416,95 +416,104 @@ export default function SecurityPage() {
           onPress={() =>
             Alert.alert(
               'Active Devices',
-              'We’ll create a page that lists devices from push_tokens (device_id + platform).'
+              'We’ll create a page that lists devices from push_tokens (device_id + platform).',
             )
           }
         />
       </View>
-
       {/* Change Password Modal */}
       <Modal visible={showPwdModal} transparent animationType='slide'>
-        <Pressable
-          style={styles.modalOverlay}
-          onPress={() => !loading && setShowPwdModal(false)}
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={{ flex: 1 }}
         >
-          <Pressable style={styles.sheet} onPress={() => {}}>
-            <View style={styles.sheetHandle} />
-            <Text style={styles.sheetTitle}>Change Password</Text>
+          <Pressable
+            style={styles.modalOverlay}
+            onPress={() => !loading && setShowPwdModal(false)}
+          >
+            <Pressable style={styles.sheet} onPress={() => {}}>
+              <ScrollView
+                keyboardShouldPersistTaps='handled'
+                showsVerticalScrollIndicator={false}
+              >
+                <View style={styles.sheetHandle} />
 
-            <Text style={styles.fieldLabel}>Current password</Text>
-            <TextInput
-              value={currentPassword}
-              onChangeText={setCurrentPassword}
-              secureTextEntry
-              placeholder='Enter current password'
-              placeholderTextColor='#94a3b8'
-              style={styles.input}
-            />
+                <Text style={styles.sheetTitle}>Change Password</Text>
 
-            <Text style={styles.fieldLabel}>New password</Text>
-            <TextInput
-              value={newPassword}
-              onChangeText={setNewPassword}
-              secureTextEntry
-              placeholder='Enter new password'
-              placeholderTextColor='#94a3b8'
-              style={styles.input}
-            />
+                <Text style={styles.fieldLabel}>Current password</Text>
+                <TextInput
+                  value={currentPassword}
+                  onChangeText={setCurrentPassword}
+                  secureTextEntry
+                  placeholder='Enter current password'
+                  placeholderTextColor='#94a3b8'
+                  style={styles.input}
+                />
 
-            <Text style={styles.fieldLabel}>Confirm new password</Text>
-            <TextInput
-              value={confirmNewPassword}
-              onChangeText={setConfirmNewPassword}
-              secureTextEntry
-              placeholder='Confirm new password'
-              placeholderTextColor='#94a3b8'
-              style={styles.input}
-            />
+                <Text style={styles.fieldLabel}>New password</Text>
+                <TextInput
+                  value={newPassword}
+                  onChangeText={setNewPassword}
+                  secureTextEntry
+                  placeholder='Enter new password'
+                  placeholderTextColor='#94a3b8'
+                  style={styles.input}
+                />
 
-            <TouchableOpacity
-              style={[
-                styles.primaryBtn,
-                (!canSavePassword || loading) && { opacity: 0.6 },
-              ]}
-              disabled={!canSavePassword || loading}
-              onPress={handleChangePassword}
-            >
-              {loading ? (
-                <View
-                  style={{
-                    flexDirection: 'row',
-                    gap: 10,
-                    alignItems: 'center',
-                  }}
+                <Text style={styles.fieldLabel}>Confirm new password</Text>
+                <TextInput
+                  value={confirmNewPassword}
+                  onChangeText={setConfirmNewPassword}
+                  secureTextEntry
+                  placeholder='Confirm new password'
+                  placeholderTextColor='#94a3b8'
+                  style={styles.input}
+                />
+
+                <TouchableOpacity
+                  style={[
+                    styles.primaryBtn,
+                    (!canSavePassword || loading) && { opacity: 0.6 },
+                  ]}
+                  disabled={!canSavePassword || loading}
+                  onPress={handleChangePassword}
                 >
-                  <ActivityIndicator color='#fff' />
-                  <Text style={styles.primaryText}>Updating…</Text>
-                </View>
-              ) : (
-                <Text style={styles.primaryText}>Update Password</Text>
-              )}
-            </TouchableOpacity>
+                  {loading ? (
+                    <View
+                      style={{
+                        flexDirection: 'row',
+                        gap: 10,
+                        alignItems: 'center',
+                      }}
+                    >
+                      <ActivityIndicator color='#fff' />
+                      <Text style={styles.primaryText}>Updating…</Text>
+                    </View>
+                  ) : (
+                    <Text style={styles.primaryText}>Update Password</Text>
+                  )}
+                </TouchableOpacity>
 
-            <TouchableOpacity
-              style={styles.secondaryBtn}
-              disabled={loading}
-              onPress={() => setShowPwdModal(false)}
-            >
-              <Text style={styles.secondaryText}>Cancel</Text>
-            </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.secondaryBtn}
+                  disabled={loading}
+                  onPress={() => setShowPwdModal(false)}
+                >
+                  <Text style={styles.secondaryText}>Cancel</Text>
+                </TouchableOpacity>
 
-            {newPassword.length > 0 &&
-            confirmNewPassword.length > 0 &&
-            newPassword !== confirmNewPassword ? (
-              <Text style={styles.hintError}>Passwords do not match.</Text>
-            ) : (
-              <Text style={styles.hint}>Minimum 6 characters.</Text>
-            )}
+                {newPassword.length > 0 &&
+                confirmNewPassword.length > 0 &&
+                newPassword !== confirmNewPassword ? (
+                  <Text style={styles.hintError}>Passwords do not match.</Text>
+                ) : (
+                  <Text style={styles.hint}>Minimum 6 characters.</Text>
+                )}
+              </ScrollView>
+            </Pressable>
           </Pressable>
-        </Pressable>
+        </KeyboardAvoidingView>
       </Modal>
-
       {/* Withdrawal 2FA Verify Modal */}
       <Modal
         visible={verifyOpen}
@@ -512,95 +521,115 @@ export default function SecurityPage() {
         animationType='fade'
         onRequestClose={() => !verifying && closeVerifyModalAndRevert()}
       >
-        <Pressable
-          style={styles.verifyOverlay}
-          onPress={() => !verifying && closeVerifyModalAndRevert()}
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={{ flex: 1 }}
         >
-          <Pressable style={styles.verifyCard} onPress={() => {}}>
-            <View style={styles.verifyTop}>
-              <Text style={styles.verifyTitle}>Verify your email</Text>
-              <TouchableOpacity
-                disabled={verifying}
-                onPress={closeVerifyModalAndRevert}
+          <Pressable
+            style={styles.verifyOverlay}
+            onPress={() => !verifying && closeVerifyModalAndRevert()}
+          >
+            <Pressable style={styles.verifyCard} onPress={() => {}}>
+              <ScrollView
+                keyboardShouldPersistTaps='handled'
+                showsVerticalScrollIndicator={false}
               >
-                <Ionicons name='close' size={22} color='#0f172a' />
-              </TouchableOpacity>
-            </View>
+                <View style={styles.verifyTop}>
+                  <Text style={styles.verifyTitle}>Verify your email</Text>
 
-            <Text style={styles.verifySub}>
-              Enter the 6-digit code we sent to your email.
-            </Text>
+                  <TouchableOpacity
+                    disabled={verifying}
+                    onPress={closeVerifyModalAndRevert}
+                  >
+                    <Ionicons name='close' size={22} color='#0f172a' />
+                  </TouchableOpacity>
+                </View>
 
-            <View style={styles.otpRow}>
-              {otpDigits.map((d, i) => (
-                <TextInput
-                  key={i}
-                  ref={(r) => {
-                    otpRefs.current[i] = r
-                  }}
-                  value={d}
-                  onChangeText={(t) => handleOtpChange(i, t)}
-                  onKeyPress={({ nativeEvent }) =>
-                    handleOtpKeyPress(i, nativeEvent.key)
-                  }
-                  keyboardType='number-pad'
-                  maxLength={1}
-                  style={[styles.otpBox, d ? styles.otpBoxFilled : null]}
-                  placeholder='•'
-                  placeholderTextColor='#cbd5e1'
-                  textAlign='center'
-                />
-              ))}
-            </View>
-
-            <TouchableOpacity
-              style={[
-                styles.verifyBtn,
-                (!otpComplete || verifying) && { opacity: 0.6 },
-              ]}
-              disabled={!otpComplete || verifying}
-              onPress={verifyEnableCode}
-            >
-              {verifying ? (
-                <ActivityIndicator color='#fff' />
-              ) : (
-                <Text style={styles.verifyBtnText}>Confirm</Text>
-              )}
-            </TouchableOpacity>
-
-            <View style={styles.verifyLinks}>
-              <Pressable
-                style={styles.smallLink}
-                onPress={pasteOtp}
-                disabled={verifying}
-              >
-                <Ionicons name='clipboard-outline' size={16} color='#2563eb' />
-                <Text style={styles.smallLinkText}>Paste</Text>
-              </Pressable>
-
-              <Pressable
-                style={styles.smallLink}
-                onPress={resendEnableCode}
-                disabled={verifying || cooldown > 0}
-              >
-                <Ionicons name='refresh-outline' size={16} color='#2563eb' />
-                <Text
-                  style={[
-                    styles.smallLinkText,
-                    (verifying || cooldown > 0) && { opacity: 0.6 },
-                  ]}
-                >
-                  {cooldown > 0 ? `Resend ${cooldown}s` : 'Resend'}
+                <Text style={styles.verifySub}>
+                  Enter the 6-digit code we sent to your email.
                 </Text>
-              </Pressable>
-            </View>
 
-            <Text style={styles.verifyNote}>
-              If you didn’t get the code, check Spam/Junk.
-            </Text>
+                <View style={styles.otpRow}>
+                  {otpDigits.map((d, i) => (
+                    <TextInput
+                      key={i}
+                      ref={(r) => {
+                        otpRefs.current[i] = r
+                      }}
+                      value={d}
+                      onChangeText={(t) => handleOtpChange(i, t)}
+                      onKeyPress={({ nativeEvent }) =>
+                        handleOtpKeyPress(i, nativeEvent.key)
+                      }
+                      keyboardType='number-pad'
+                      maxLength={1}
+                      style={[styles.otpBox, d ? styles.otpBoxFilled : null]}
+                      placeholder='•'
+                      placeholderTextColor='#cbd5e1'
+                      textAlign='center'
+                    />
+                  ))}
+                </View>
+
+                <TouchableOpacity
+                  style={[
+                    styles.verifyBtn,
+                    (!otpComplete || verifying) && { opacity: 0.6 },
+                  ]}
+                  disabled={!otpComplete || verifying}
+                  onPress={verifyEnableCode}
+                >
+                  {verifying ? (
+                    <ActivityIndicator color='#fff' />
+                  ) : (
+                    <Text style={styles.verifyBtnText}>Confirm</Text>
+                  )}
+                </TouchableOpacity>
+
+                <View style={styles.verifyLinks}>
+                  <Pressable
+                    style={styles.smallLink}
+                    onPress={pasteOtp}
+                    disabled={verifying}
+                  >
+                    <Ionicons
+                      name='clipboard-outline'
+                      size={16}
+                      color='#2563eb'
+                    />
+                    <Text style={styles.smallLinkText}>Paste</Text>
+                  </Pressable>
+
+                  <Pressable
+                    style={styles.smallLink}
+                    onPress={resendEnableCode}
+                    disabled={verifying || cooldown > 0}
+                  >
+                    <Ionicons
+                      name='refresh-outline'
+                      size={16}
+                      color='#2563eb'
+                    />
+
+                    <Text
+                      style={[
+                        styles.smallLinkText,
+                        (verifying || cooldown > 0) && { opacity: 0.6 },
+                      ]}
+                    >
+                      {cooldown > 0 ? `Resend ${cooldown}s` : 'Resend'}
+                    </Text>
+                  </Pressable>
+                </View>
+
+                <Text style={styles.verifyNote}>
+                  If you didn’t get the code, check Spam/Junk.
+                </Text>
+              </ScrollView>
+            </Pressable>
           </Pressable>
-        </Pressable>
-      </Modal>
+        </KeyboardAvoidingView>
+      </Modal>{' '}
     </SafeAreaView>
   )
 }
@@ -712,6 +741,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 10,
     paddingBottom: 22,
+    maxHeight: '85%',
   },
   sheetHandle: {
     width: 44,
@@ -787,7 +817,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: 18,
   },
-  verifyCard: { backgroundColor: '#fff', borderRadius: 22, padding: 16 },
+  verifyCard: {
+    backgroundColor: '#fff',
+    borderRadius: 22,
+    padding: 16,
+    maxHeight: '85%',
+  },
   verifyTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',

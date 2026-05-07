@@ -1,18 +1,21 @@
 import BiometricGate from '@/component/BiometricsGate'
 import { Slot } from 'expo-router'
 import { ActivityIndicator, StyleSheet, View } from 'react-native'
+import { GestureHandlerRootView } from 'react-native-gesture-handler'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
 import { AuthProvider, useAuth } from '../authContext'
 
 export default function RootLayout() {
   return (
-    <SafeAreaProvider>
-      <AuthProvider>
-        <BiometricGate>
-          <Inner />
-        </BiometricGate>
-      </AuthProvider>
-    </SafeAreaProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <AuthProvider>
+          <BiometricGate>
+            <Inner />
+          </BiometricGate>
+        </AuthProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   )
 }
 

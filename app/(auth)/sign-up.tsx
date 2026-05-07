@@ -31,6 +31,7 @@ export default function SignUp() {
   const [password, setPassword] = useState('')
   const [username, setUsername] = useState('')
   const [fullName, setFullName] = useState('')
+  const [referralCode, setReferralCode] = useState('')
 
   const [otp, setOtp] = useState('')
   const [loading, setLoading] = useState(false)
@@ -63,7 +64,7 @@ export default function SignUp() {
       [
         { text: 'Cancel', style: 'cancel' },
         { text: 'Go to Login', onPress: () => router.replace('/(auth)/login') },
-      ]
+      ],
     )
   }
 
@@ -101,7 +102,7 @@ export default function SignUp() {
     if (!password || password.length < 6) {
       return Alert.alert(
         'Weak password',
-        'Password must be at least 6 characters'
+        'Password must be at least 6 characters',
       )
     }
 
@@ -136,7 +137,7 @@ export default function SignUp() {
       setOtp('')
       Alert.alert(
         'Verification code sent',
-        `We sent a code to ${normalizedEmail}`
+        `We sent a code to ${normalizedEmail}`,
       )
     } catch (e: any) {
       Alert.alert('Error', e?.message || 'Failed to send verification code')
@@ -168,6 +169,26 @@ export default function SignUp() {
         return
       }
 
+      const generatedReferralCode = generateReferralCode(username.trim())
+
+      let referrerId: string | null = null
+      let validReferral = false
+
+      if (referralCode.trim()) {
+        const { data: refUser } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('referral_code', referralCode.trim().toUpperCase())
+          .single()
+
+        if (refUser) {
+          referrerId = refUser.id
+          validReferral = true
+        }
+      }
+
+      const signupBonus = validReferral ? 3000 : 0
+
       const { error: passErr } = await supabase.auth.updateUser({
         password,
         data: { username: username.trim(), full_name: fullName.trim() },
@@ -182,8 +203,24 @@ export default function SignUp() {
         email: user.email,
         full_name: fullName.trim(),
         username: username.trim(),
-        balance: 0,
+
+        balance: signupBonus,
+
+        referral_code: generatedReferralCode,
+
+        referred_by: referrerId,
+
+        signup_bonus_claimed: validReferral,
       })
+
+      if (validReferral && referrerId) {
+        await supabase.from('referrals').insert({
+          referrer_id: referrerId,
+          referred_user_id: user.id,
+          reward_paid: true,
+          referral_code: referralCode.trim().toUpperCase(),
+        })
+      }
 
       if (profileError) console.error('Profile upsert error:', profileError)
 
@@ -292,6 +329,15 @@ export default function SignUp() {
                   placeholder='you@email.com'
                   autoCapitalize='none'
                   keyboardType='email-address'
+                />
+
+                <Field
+                  label='Referral Code (Optional)'
+                  icon='gift-outline'
+                  value={referralCode}
+                  onChangeText={setReferralCode}
+                  placeholder='Enter referral code'
+                  autoCapitalize='characters'
                 />
 
                 {/* Password with show/hide */}
@@ -513,6 +559,11 @@ function Field(props: {
   )
 }
 
+function generateReferralCode(username: string) {
+  const random = Math.floor(1000 + Math.random() * 9000)
+
+  return `${username}${random}`.toUpperCase()
+}
 /** Strength scoring: 0..4 */
 function scorePassword(pw: string) {
   if (!pw) return 0

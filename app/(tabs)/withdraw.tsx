@@ -117,7 +117,7 @@ export default function WithdrawPage() {
   // ---- 2FA OTP modal state ----
   const [showOtpModal, setShowOtpModal] = useState(false)
   const [otpDigits, setOtpDigits] = useState<string[]>(Array(OTP_LEN).fill(''))
-  const otpRefs = useRef<Array<TextInput | null>>([])
+  const otpRefs = useRef<(TextInput | null)[]>([])
   const [otpLoading, setOtpLoading] = useState(false)
   const [otpCooldown, setOtpCooldown] = useState(0)
   const [otpSentAtLeastOnce, setOtpSentAtLeastOnce] = useState(false)
@@ -249,7 +249,7 @@ export default function WithdrawPage() {
   const otpValue = useMemo(() => otpDigits.join(''), [otpDigits])
   const otpComplete = useMemo(
     () => otpDigits.every((d) => d.length === 1),
-    [otpDigits]
+    [otpDigits],
   )
 
   const resetOtpState = () => {
@@ -458,7 +458,8 @@ export default function WithdrawPage() {
 
   // ---------------- 2FA (Email OTP via Supabase Auth) ----------------
   const sendWithdrawOtp = async () => {
-    const email = (await supabase.auth.getUser()).data.user?.email || profileEmail
+    const email =
+      (await supabase.auth.getUser()).data.user?.email || profileEmail
     if (!email) throw new Error('No email found for this account.')
 
     const { error } = await supabase.auth.signInWithOtp({
@@ -491,7 +492,8 @@ export default function WithdrawPage() {
     try {
       setOtpLoading(true)
 
-      const email = (await supabase.auth.getUser()).data.user?.email || profileEmail
+      const email =
+        (await supabase.auth.getUser()).data.user?.email || profileEmail
       if (!email) throw new Error('No email found for this account.')
 
       const { error } = await supabase.auth.verifyOtp({
@@ -578,7 +580,7 @@ export default function WithdrawPage() {
         'Biometrics not ready',
         bioSupport.hasHardware
           ? 'Please enroll Face ID / Touch ID in your device settings.'
-          : 'This device does not support biometrics.'
+          : 'This device does not support biometrics.',
       )
       openPinGate()
       return
@@ -612,14 +614,14 @@ export default function WithdrawPage() {
   if (loading) {
     return (
       <View style={styles.loader}>
-        <ActivityIndicator size="large" color="#2563eb" />
+        <ActivityIndicator size='large' color='#2563eb' />
       </View>
     )
   }
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#f8fafc' }}>
-      <StatusBar style="dark" backgroundColor="#fff" />
+      <StatusBar style='dark' backgroundColor='#fff' />
       <ScrollView
         style={styles.container}
         refreshControl={
@@ -635,19 +637,21 @@ export default function WithdrawPage() {
           end={{ x: 1, y: 1 }}
         >
           <Pressable style={styles.backBtn} onPress={() => router.back()}>
-            <Ionicons name="chevron-back" size={22} color="#ffffff" />
+            <Ionicons name='chevron-back' size={22} color='#ffffff' />
           </Pressable>
 
           <View style={{ flex: 1 }}>
             <Text style={styles.headerTitle}>Withdraw</Text>
-            <Text style={styles.headerSub}>Fast payouts • Secure withdrawals</Text>
+            <Text style={styles.headerSub}>
+              Fast payouts • Secure withdrawals
+            </Text>
           </View>
 
           <Pressable
             style={styles.manageBtn}
             onPress={() => router.push('/linked-accounts')}
           >
-            <Ionicons name="card-outline" size={18} color="#0f172a" />
+            <Ionicons name='card-outline' size={18} color='#0f172a' />
             <Text style={styles.manageText}>Manage</Text>
           </Pressable>
         </LinearGradient>
@@ -665,12 +669,16 @@ export default function WithdrawPage() {
                 withdraw2FAEnabled
                   ? 'mail-unread-outline'
                   : bioWithdrawEnabled
-                  ? 'finger-print-outline'
-                  : 'shield-checkmark-outline'
+                    ? 'finger-print-outline'
+                    : 'shield-checkmark-outline'
               }
               size={16}
               color={
-                withdraw2FAEnabled ? '#0f172a' : bioWithdrawEnabled ? '#2563eb' : '#16a34a'
+                withdraw2FAEnabled
+                  ? '#0f172a'
+                  : bioWithdrawEnabled
+                    ? '#2563eb'
+                    : '#16a34a'
               }
             />
             <Text
@@ -680,18 +688,18 @@ export default function WithdrawPage() {
                   color: withdraw2FAEnabled
                     ? '#0f172a'
                     : bioWithdrawEnabled
-                    ? '#2563eb'
-                    : '#16a34a',
+                      ? '#2563eb'
+                      : '#16a34a',
                 },
               ]}
             >
               {withdraw2FAEnabled
                 ? 'Email 2FA'
                 : bioWithdrawEnabled
-                ? 'Biometric Active'
-                : pinHash
-                ? 'PIN Active'
-                : 'Set PIN'}
+                  ? 'Biometric Active'
+                  : pinHash
+                    ? 'PIN Active'
+                    : 'Set PIN'}
             </Text>
           </View>
         </View>
@@ -705,13 +713,13 @@ export default function WithdrawPage() {
               style={styles.linkBtn}
             >
               <Text style={styles.linkText}>Manage account</Text>
-              <Ionicons name="chevron-forward" size={16} color="#2563eb" />
+              <Ionicons name='chevron-forward' size={16} color='#2563eb' />
             </TouchableOpacity>
           </View>
 
           {bankAccounts.length === 0 ? (
             <View style={styles.emptyCard}>
-              <Ionicons name="card-outline" size={22} color="#94a3b8" />
+              <Ionicons name='card-outline' size={22} color='#94a3b8' />
               <Text style={styles.emptyTitle}>No bank account added</Text>
               <Text style={styles.emptySub}>
                 Add a payout account to withdraw earnings.
@@ -731,11 +739,14 @@ export default function WithdrawPage() {
                   <Pressable
                     key={b.id}
                     onPress={() => setSelectedBank(b)}
-                    style={[styles.bankCard, selected && styles.bankCardSelected]}
+                    style={[
+                      styles.bankCard,
+                      selected && styles.bankCardSelected,
+                    ]}
                   >
                     <View style={styles.bankIcon}>
                       <Ionicons
-                        name="card-outline"
+                        name='card-outline'
                         size={18}
                         color={selected ? '#2563eb' : '#0f172a'}
                       />
@@ -749,9 +760,17 @@ export default function WithdrawPage() {
                     </View>
 
                     {selected ? (
-                      <Ionicons name="checkmark-circle" size={20} color="#2563eb" />
+                      <Ionicons
+                        name='checkmark-circle'
+                        size={20}
+                        color='#2563eb'
+                      />
                     ) : (
-                      <Ionicons name="ellipse-outline" size={20} color="#cbd5e1" />
+                      <Ionicons
+                        name='ellipse-outline'
+                        size={20}
+                        color='#cbd5e1'
+                      />
                     )}
                   </Pressable>
                 )
@@ -768,8 +787,8 @@ export default function WithdrawPage() {
             <Text style={styles.currency}>₦</Text>
             <TextInput
               style={styles.amountInput}
-              placeholder="0"
-              placeholderTextColor="#94a3b8"
+              placeholder='0'
+              placeholderTextColor='#94a3b8'
               keyboardType={Platform.OS === 'ios' ? 'number-pad' : 'numeric'}
               value={amount}
               onChangeText={setAmount}
@@ -780,8 +799,8 @@ export default function WithdrawPage() {
             {parsedAmount > balance
               ? 'Amount exceeds your balance.'
               : withdraw2FAEnabled
-              ? 'Email 2FA enabled — you’ll confirm with a code.'
-              : 'Withdrawals are processed within 0–24 hours.'}
+                ? 'Email 2FA enabled — you’ll confirm with a code.'
+                : 'Withdrawals are processed within 0–24 hours.'}
           </Text>
 
           <TouchableOpacity
@@ -796,8 +815,14 @@ export default function WithdrawPage() {
               end={{ x: 1, y: 1 }}
             >
               {submitting ? (
-                <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
-                  <ActivityIndicator color="#fff" />
+                <View
+                  style={{
+                    flexDirection: 'row',
+                    gap: 10,
+                    alignItems: 'center',
+                  }}
+                >
+                  <ActivityIndicator color='#fff' />
                   <Text style={styles.withdrawText}>Processing…</Text>
                 </View>
               ) : (
@@ -823,7 +848,9 @@ export default function WithdrawPage() {
               renderItem={({ item }) => (
                 <View style={styles.historyCard}>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.historyAmount}>{money(item.amount)}</Text>
+                    <Text style={styles.historyAmount}>
+                      {money(item.amount)}
+                    </Text>
                     <Text style={styles.historyMeta}>
                       {item.bank?.bank_name} • {item.bank?.account_number}
                     </Text>
@@ -838,8 +865,8 @@ export default function WithdrawPage() {
                       item.status === 'approved'
                         ? styles.badgeApproved
                         : item.status === 'rejected'
-                        ? styles.badgeRejected
-                        : styles.badgePending,
+                          ? styles.badgeRejected
+                          : styles.badgePending,
                     ]}
                   >
                     <Text
@@ -848,8 +875,8 @@ export default function WithdrawPage() {
                         item.status === 'approved'
                           ? { color: '#16a34a' }
                           : item.status === 'rejected'
-                          ? { color: '#dc2626' }
-                          : { color: '#ca8a04' },
+                            ? { color: '#dc2626' }
+                            : { color: '#ca8a04' },
                       ]}
                     >
                       {item.status.toUpperCase()}
@@ -862,7 +889,7 @@ export default function WithdrawPage() {
         </View>
 
         {/* -------- Password confirm modal -------- */}
-        <Modal visible={showPwdModal} transparent animationType="slide">
+        <Modal visible={showPwdModal} transparent animationType='slide'>
           <Pressable
             style={styles.modalOverlay}
             onPress={() => !submitting && setShowPwdModal(false)}
@@ -871,20 +898,24 @@ export default function WithdrawPage() {
               <View style={styles.sheetHandle} />
               <Text style={styles.sheetTitle}>Confirm password</Text>
               <Text style={styles.sheetSub}>
-                For your safety, confirm your password to create a withdrawal PIN.
+                For your safety, confirm your password to create a withdrawal
+                PIN.
               </Text>
 
               <TextInput
                 value={pwd}
                 onChangeText={setPwd}
                 secureTextEntry
-                placeholder="Enter your password"
-                placeholderTextColor="#94a3b8"
+                placeholder='Enter your password'
+                placeholderTextColor='#94a3b8'
                 style={styles.sheetInput}
               />
 
               <TouchableOpacity
-                style={[styles.sheetBtn, (!pwd || submitting) && { opacity: 0.6 }]}
+                style={[
+                  styles.sheetBtn,
+                  (!pwd || submitting) && { opacity: 0.6 },
+                ]}
                 disabled={!pwd || submitting}
                 onPress={verifyCurrentPassword}
               >
@@ -905,7 +936,7 @@ export default function WithdrawPage() {
         </Modal>
 
         {/* -------- Set PIN modal -------- */}
-        <Modal visible={showSetPinModal} transparent animationType="slide">
+        <Modal visible={showSetPinModal} transparent animationType='slide'>
           <Pressable
             style={styles.modalOverlay}
             onPress={() => !submitting && setShowSetPinModal(false)}
@@ -913,13 +944,15 @@ export default function WithdrawPage() {
             <Pressable style={styles.sheet} onPress={() => {}}>
               <View style={styles.sheetHandle} />
               <Text style={styles.sheetTitle}>Create withdrawal PIN</Text>
-              <Text style={styles.sheetSub}>Set a 4-digit PIN you’ll use for withdrawals.</Text>
+              <Text style={styles.sheetSub}>
+                Set a 4-digit PIN you’ll use for withdrawals.
+              </Text>
 
               <TextInput
                 value={pin}
                 onChangeText={(t) => setPin(t.replace(/\D/g, '').slice(0, 4))}
-                placeholder="Enter 4-digit PIN"
-                placeholderTextColor="#94a3b8"
+                placeholder='Enter 4-digit PIN'
+                placeholderTextColor='#94a3b8'
                 keyboardType={Platform.OS === 'ios' ? 'number-pad' : 'numeric'}
                 secureTextEntry
                 style={styles.sheetInput}
@@ -928,8 +961,8 @@ export default function WithdrawPage() {
               <TextInput
                 value={pin2}
                 onChangeText={(t) => setPin2(t.replace(/\D/g, '').slice(0, 4))}
-                placeholder="Confirm PIN"
-                placeholderTextColor="#94a3b8"
+                placeholder='Confirm PIN'
+                placeholderTextColor='#94a3b8'
                 keyboardType={Platform.OS === 'ios' ? 'number-pad' : 'numeric'}
                 secureTextEntry
                 style={styles.sheetInput}
@@ -938,12 +971,16 @@ export default function WithdrawPage() {
               <TouchableOpacity
                 style={[
                   styles.sheetBtn,
-                  (pin.length !== 4 || pin2.length !== 4 || submitting) && { opacity: 0.6 },
+                  (pin.length !== 4 || pin2.length !== 4 || submitting) && {
+                    opacity: 0.6,
+                  },
                 ]}
                 disabled={pin.length !== 4 || pin2.length !== 4 || submitting}
                 onPress={saveNewPin}
               >
-                <Text style={styles.sheetBtnText}>{submitting ? 'Saving…' : 'Save PIN'}</Text>
+                <Text style={styles.sheetBtnText}>
+                  {submitting ? 'Saving…' : 'Save PIN'}
+                </Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -958,7 +995,7 @@ export default function WithdrawPage() {
         </Modal>
 
         {/* -------- Enter PIN modal -------- */}
-        <Modal visible={showEnterPinModal} transparent animationType="slide">
+        <Modal visible={showEnterPinModal} transparent animationType='slide'>
           <Pressable
             style={styles.modalOverlay}
             onPress={() => !submitting && setShowEnterPinModal(false)}
@@ -966,13 +1003,17 @@ export default function WithdrawPage() {
             <Pressable style={styles.sheet} onPress={() => {}}>
               <View style={styles.sheetHandle} />
               <Text style={styles.sheetTitle}>Enter PIN</Text>
-              <Text style={styles.sheetSub}>Confirm your withdrawal with your 4-digit PIN.</Text>
+              <Text style={styles.sheetSub}>
+                Confirm your withdrawal with your 4-digit PIN.
+              </Text>
 
               <TextInput
                 value={pinEntry}
-                onChangeText={(t) => setPinEntry(t.replace(/\D/g, '').slice(0, 4))}
-                placeholder="••••"
-                placeholderTextColor="#94a3b8"
+                onChangeText={(t) =>
+                  setPinEntry(t.replace(/\D/g, '').slice(0, 4))
+                }
+                placeholder='••••'
+                placeholderTextColor='#94a3b8'
                 keyboardType={Platform.OS === 'ios' ? 'number-pad' : 'numeric'}
                 secureTextEntry
                 style={styles.sheetInput}
@@ -986,7 +1027,9 @@ export default function WithdrawPage() {
                 disabled={pinEntry.length !== 4 || submitting}
                 onPress={verifyPinAndContinue}
               >
-                <Text style={styles.sheetBtnText}>{submitting ? 'Checking…' : 'Confirm Withdrawal'}</Text>
+                <Text style={styles.sheetBtnText}>
+                  {submitting ? 'Checking…' : 'Confirm Withdrawal'}
+                </Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -1001,7 +1044,7 @@ export default function WithdrawPage() {
         </Modal>
 
         {/* -------- Email 2FA OTP modal (6 boxes) -------- */}
-        <Modal visible={showOtpModal} transparent animationType="fade">
+        <Modal visible={showOtpModal} transparent animationType='fade'>
           <View style={styles.otpOverlay}>
             <KeyboardAvoidingView
               behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -1010,12 +1053,18 @@ export default function WithdrawPage() {
               <View style={styles.otpCard}>
                 <View style={styles.otpTop}>
                   <View style={styles.otpIcon}>
-                    <Ionicons name="mail-unread-outline" size={18} color="#0f172a" />
+                    <Ionicons
+                      name='mail-unread-outline'
+                      size={18}
+                      color='#0f172a'
+                    />
                   </View>
                   <Text style={styles.otpTitle}>Email verification</Text>
                 </View>
 
-                <Text style={styles.otpSub}>Enter the 6-digit code sent to your email.</Text>
+                <Text style={styles.otpSub}>
+                  Enter the 6-digit code sent to your email.
+                </Text>
 
                 <View style={styles.otpRow}>
                   {otpDigits.map((d, idx) => (
@@ -1024,27 +1073,34 @@ export default function WithdrawPage() {
                       ref={(r) => (otpRefs.current[idx] = r)}
                       value={d}
                       onChangeText={(v) => handleOtpChange(idx, v)}
-                      onKeyPress={({ nativeEvent }) => handleOtpKeyPress(idx, nativeEvent.key)}
-                      keyboardType="number-pad"
+                      onKeyPress={({ nativeEvent }) =>
+                        handleOtpKeyPress(idx, nativeEvent.key)
+                      }
+                      keyboardType='number-pad'
                       maxLength={1}
                       style={[styles.otpBox, d ? styles.otpBoxFilled : null]}
-                      placeholder="•"
-                      placeholderTextColor="#94a3b8"
-                      textAlign="center"
-                      selectionColor="#2563eb"
+                      placeholder='•'
+                      placeholderTextColor='#94a3b8'
+                      textAlign='center'
+                      selectionColor='#2563eb'
                     />
                   ))}
                 </View>
 
                 <TouchableOpacity
-                  style={[styles.otpPrimaryBtn, (!otpComplete || otpLoading) && { opacity: 0.6 }]}
+                  style={[
+                    styles.otpPrimaryBtn,
+                    (!otpComplete || otpLoading) && { opacity: 0.6 },
+                  ]}
                   disabled={!otpComplete || otpLoading}
                   onPress={verifyWithdrawOtpThenSubmit}
                 >
                   {otpLoading ? (
-                    <ActivityIndicator color="#fff" />
+                    <ActivityIndicator color='#fff' />
                   ) : (
-                    <Text style={styles.otpPrimaryText}>Confirm & Withdraw</Text>
+                    <Text style={styles.otpPrimaryText}>
+                      Confirm & Withdraw
+                    </Text>
                   )}
                 </TouchableOpacity>
 
@@ -1059,7 +1115,10 @@ export default function WithdrawPage() {
                         await sendWithdrawOtp()
                         setTimeout(() => focusOtp(0), 250)
                       } catch (e: any) {
-                        Alert.alert('Error', e?.message || 'Failed to resend code')
+                        Alert.alert(
+                          'Error',
+                          e?.message || 'Failed to resend code',
+                        )
                       } finally {
                         setOtpLoading(false)
                       }
@@ -1067,8 +1126,15 @@ export default function WithdrawPage() {
                     disabled={otpLoading || otpCooldown > 0}
                     style={{ paddingVertical: 10, paddingHorizontal: 6 }}
                   >
-                    <Text style={[styles.otpLink, (otpLoading || otpCooldown > 0) && { opacity: 0.55 }]}>
-                      {otpCooldown > 0 ? `Resend in ${otpCooldown}s` : 'Resend code'}
+                    <Text
+                      style={[
+                        styles.otpLink,
+                        (otpLoading || otpCooldown > 0) && { opacity: 0.55 },
+                      ]}
+                    >
+                      {otpCooldown > 0
+                        ? `Resend in ${otpCooldown}s`
+                        : 'Resend code'}
                     </Text>
                   </TouchableOpacity>
 
@@ -1077,7 +1143,9 @@ export default function WithdrawPage() {
                     disabled={otpLoading}
                     style={{ paddingVertical: 10, paddingHorizontal: 6 }}
                   >
-                    <Text style={[styles.otpLink, { color: '#0f172a' }]}>Cancel</Text>
+                    <Text style={[styles.otpLink, { color: '#0f172a' }]}>
+                      Cancel
+                    </Text>
                   </TouchableOpacity>
                 </View>
 
@@ -1377,7 +1445,12 @@ const styles = StyleSheet.create({
   },
   otpTitle: { fontSize: 16, fontWeight: '900', color: '#0f172a' },
   otpSub: { marginTop: 8, color: '#64748b', fontWeight: '800' },
-  otpRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 8, marginTop: 14 },
+  otpRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 8,
+    marginTop: 14,
+  },
   otpBox: {
     flex: 1,
     height: 54,
@@ -1398,7 +1471,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   otpPrimaryText: { color: '#fff', fontWeight: '900' },
-  otpActions: { marginTop: 10, flexDirection: 'row', justifyContent: 'space-between' },
+  otpActions: {
+    marginTop: 10,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
   otpLink: { color: '#2563eb', fontWeight: '900' },
   otpHintMuted: {
     marginTop: 10,

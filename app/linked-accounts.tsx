@@ -7,9 +7,12 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
   RefreshControl,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -47,7 +50,7 @@ export default function BanksPage() {
   const canSave = useMemo(() => {
     return (
       form.bank_name.trim().length >= 2 &&
-      form.account_number.trim().length >= 6 &&
+      form.account_number.trim().length >= 10 &&
       form.account_name.trim().length >= 2
     )
   }, [form])
@@ -63,7 +66,7 @@ export default function BanksPage() {
       const { data, error } = await supabase
         .from('user_bank_info')
         .select(
-          'id, bank_name, account_number, account_name, created_at, is_hidden'
+          'id, bank_name, account_number, account_name, created_at, is_hidden',
         )
         .eq('user_id', user.id)
         .eq('is_hidden', false)
@@ -116,7 +119,7 @@ export default function BanksPage() {
         .from('user_bank_info')
         .insert([payload])
         .select(
-          'id, bank_name, account_number, account_name, created_at, is_hidden'
+          'id, bank_name, account_number, account_name, created_at, is_hidden',
         )
         .single()
 
@@ -144,7 +147,7 @@ export default function BanksPage() {
           style: 'destructive',
           onPress: () => handleHideBank(bank.id),
         },
-      ]
+      ],
     )
   }
 
@@ -231,7 +234,6 @@ export default function BanksPage() {
           <Ionicons name='add' size={22} color='#0f172a' />
         </Pressable>
       </View>
-
       {/* Body */}
       {loading ? (
         <View style={styles.center}>
@@ -264,79 +266,90 @@ export default function BanksPage() {
           }
         />
       )}
-
       {/* Add Modal (bottom sheet style) */}
       <Modal visible={showAddModal} transparent animationType='slide'>
-        <Pressable
-          style={styles.modalOverlay}
-          onPress={() => setShowAddModal(false)}
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={{ flex: 1 }}
         >
-          <Pressable style={styles.sheet} onPress={() => {}}>
-            <View style={styles.sheetHandle} />
+          <Pressable
+            style={styles.modalOverlay}
+            onPress={() => setShowAddModal(false)}
+          >
+            <Pressable style={styles.sheet} onPress={() => {}}>
+              <ScrollView
+                keyboardShouldPersistTaps='handled'
+                showsVerticalScrollIndicator={false}
+              >
+                <View style={styles.sheetHandle} />
 
-            <Text style={styles.sheetTitle}>Add Bank</Text>
+                <Text style={styles.sheetTitle}>Add Bank</Text>
 
-            <View style={styles.field}>
-              <Text style={styles.label}>Bank name</Text>
-              <TextInput
-                value={form.bank_name}
-                onChangeText={(t) => setForm((p) => ({ ...p, bank_name: t }))}
-                placeholder='e.g. GTBank'
-                placeholderTextColor='#94a3b8'
-                style={styles.input}
-              />
-            </View>
+                <View style={styles.field}>
+                  <Text style={styles.label}>Bank name</Text>
+                  <TextInput
+                    value={form.bank_name}
+                    onChangeText={(t) =>
+                      setForm((p) => ({ ...p, bank_name: t }))
+                    }
+                    placeholder='e.g. GTBank'
+                    placeholderTextColor='#94a3b8'
+                    style={styles.input}
+                  />
+                </View>
 
-            <View style={styles.field}>
-              <Text style={styles.label}>Account number</Text>
-              <TextInput
-                value={form.account_number}
-                onChangeText={(t) =>
-                  setForm((p) => ({ ...p, account_number: t }))
-                }
-                placeholder='e.g. 0123456789'
-                placeholderTextColor='#94a3b8'
-                keyboardType='number-pad'
-                style={styles.input}
-              />
-            </View>
+                <View style={styles.field}>
+                  <Text style={styles.label}>Account number</Text>
+                  <TextInput
+                    value={form.account_number}
+                    onChangeText={(t) =>
+                      setForm((p) => ({ ...p, account_number: t }))
+                    }
+                    placeholder='e.g. 0123456789'
+                    placeholderTextColor='#94a3b8'
+                    keyboardType='number-pad'
+                    style={styles.input}
+                  />
+                </View>
 
-            <View style={styles.field}>
-              <Text style={styles.label}>Account name</Text>
-              <TextInput
-                value={form.account_name}
-                onChangeText={(t) =>
-                  setForm((p) => ({ ...p, account_name: t }))
-                }
-                placeholder='e.g. John Doe'
-                placeholderTextColor='#94a3b8'
-                style={styles.input}
-              />
-            </View>
+                <View style={styles.field}>
+                  <Text style={styles.label}>Account name</Text>
+                  <TextInput
+                    value={form.account_name}
+                    onChangeText={(t) =>
+                      setForm((p) => ({ ...p, account_name: t }))
+                    }
+                    placeholder='e.g. John Doe'
+                    placeholderTextColor='#94a3b8'
+                    style={styles.input}
+                  />
+                </View>
 
-            <TouchableOpacity
-              style={[
-                styles.primaryBtn,
-                (!canSave || saving) && { opacity: 0.6 },
-              ]}
-              disabled={!canSave || saving}
-              onPress={handleAddBank}
-            >
-              <Text style={styles.primaryText}>
-                {saving ? 'Saving…' : 'Save Bank'}
-              </Text>
-            </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.primaryBtn,
+                    (!canSave || saving) && { opacity: 0.6 },
+                  ]}
+                  disabled={!canSave || saving}
+                  onPress={handleAddBank}
+                >
+                  <Text style={styles.primaryText}>
+                    {saving ? 'Saving…' : 'Save Bank'}
+                  </Text>
+                </TouchableOpacity>
 
-            <TouchableOpacity
-              style={styles.secondaryBtn}
-              onPress={() => setShowAddModal(false)}
-              disabled={saving}
-            >
-              <Text style={styles.secondaryText}>Cancel</Text>
-            </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.secondaryBtn}
+                  onPress={() => setShowAddModal(false)}
+                  disabled={saving}
+                >
+                  <Text style={styles.secondaryText}>Cancel</Text>
+                </TouchableOpacity>
+              </ScrollView>
+            </Pressable>
           </Pressable>
-        </Pressable>
-      </Modal>
+        </KeyboardAvoidingView>
+      </Modal>{' '}
     </SafeAreaView>
   )
 }
@@ -471,6 +484,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 10,
     paddingBottom: 20,
+    maxHeight: '85%',
   },
   sheetHandle: {
     width: 44,
