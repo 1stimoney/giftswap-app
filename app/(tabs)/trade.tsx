@@ -172,7 +172,7 @@ export default function Trade() {
     if (!perm.granted) {
       Alert.alert(
         'Permission required',
-        'Allow photo library access to upload.'
+        'Allow photo library access to upload.',
       )
       return
     }
@@ -225,61 +225,86 @@ export default function Trade() {
   }
 
   const submitTrade = async () => {
-    if (!user) return Alert.alert('Error', 'Please log in again.')
-    if (!tradeType)
-      return Alert.alert('Error', 'Select Physical or E-code first.')
-    if (!selectedCard) return Alert.alert('Error', 'Select a gift card.')
-    if (!amountUSD) return Alert.alert('Error', 'Enter amount in USD.')
-
-    const usd = Number(amountUSD)
-    if (!Number.isFinite(usd) || usd <= 0) {
-      return Alert.alert('Error', 'Enter a valid USD amount.')
-    }
-
-    if (!rate || rate <= 0) {
-      return Alert.alert('Rate missing', 'This card has no rate set yet.')
-    }
-
-    if (tradeType === 'physical') {
-      if (images.length === 0) {
-        return Alert.alert('Error', 'Upload at least one image (required).')
-      }
-    }
-
-    if (tradeType === 'ecode') {
-      if (!cardCode.trim()) {
-        return Alert.alert('Error', 'E-code is required for e-code trades.')
-      }
-    }
-
     try {
-      pauseBiometrics() // ✅ stop biometric gate interrupting the trade
+      pauseBiometrics() // ✅ stop biometric lock
       setUploading(true)
 
+      if (!user) {
+        Alert.alert('Error', 'Please log in again.')
+        return
+      }
+
+      if (!tradeType) {
+        Alert.alert('Error', 'Select Physical or E-code first.')
+        return
+      }
+
+      if (!selectedCard) {
+        Alert.alert('Error', 'Select a gift card.')
+        return
+      }
+
+      if (!amountUSD) {
+        Alert.alert('Error', 'Enter amount in USD.')
+        return
+      }
+
+      const usd = Number(amountUSD)
+
+      if (!Number.isFinite(usd) || usd <= 0) {
+        Alert.alert('Error', 'Enter a valid USD amount.')
+        return
+      }
+
+      if (!rate || rate <= 0) {
+        Alert.alert('Rate Missing', 'This card has no rate set yet.')
+        return
+      }
+
+      if (tradeType === 'physical' && images.length === 0) {
+        Alert.alert('Error', 'Upload at least one image.')
+        return
+      }
+
+      if (tradeType === 'ecode' && !cardCode.trim()) {
+        Alert.alert('Error', 'Enter your card code.')
+        return
+      }
+
+      // ✅ verify session still exists
       const { data: authData } = await supabase.auth.getSession()
+
       if (!authData.session) {
-        Alert.alert('Session expired', 'Please log in again.')
+        Alert.alert('Session Expired', 'Please log in again.')
         return
       }
 
       let uploadedUrls: string[] = []
 
+      // ✅ upload physical images
       if (tradeType === 'physical') {
         const urls: string[] = []
+
         for (const img of images) {
           const uri = img.uri
+
           const ext = (uri.split('.').pop() || 'jpg').split('?')[0]
+
           const fileName = `${user.id}_${Date.now()}_${Math.random()
             .toString(36)
             .slice(2)}.${ext}`
+
           const filePath = `trades/${fileName}`
 
           const publicUrl = await uploadImageToSupabase(uri, filePath)
+
           urls.push(publicUrl)
         }
+
         uploadedUrls = urls
       }
 
+      // ✅ save trade
       const { error: insertErr } = await supabase.from('trades').insert({
         user_id: user.id,
         user_email: user.email,
@@ -300,20 +325,35 @@ export default function Trade() {
         status: 'pending',
       })
 
-      if (insertErr) throw insertErr
+      if (insertErr) {
+        throw insertErr
+      }
+
+      // ✅ refresh trades before biometrics returns
+      await fetchTradeHistory()
 
       Alert.alert('✅ Success', 'Trade submitted successfully!')
+
       resetForm()
-      fetchTradeHistory()
+
+      // ✅ IMPORTANT FIX
+      // Delay biometric resume
+      setTimeout(() => {
+        resumeBiometrics()
+      }, 4000)
     } catch (err: any) {
       console.error('Trade submission failed:', err)
+
       Alert.alert('Error', err?.message || 'Something went wrong')
+
+      // ✅ resume biometrics after failure too
+      setTimeout(() => {
+        resumeBiometrics()
+      }, 2000)
     } finally {
-      resumeBiometrics() // ✅ allow lock again after submission finishes
       setUploading(false)
     }
   }
-
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }}>
       {/* ✅ Black status bar content on white background */}
@@ -395,8 +435,8 @@ export default function Trade() {
             {tradeType === 'physical'
               ? 'Physical requires at least 1 image. Code is optional.'
               : tradeType === 'ecode'
-              ? 'E-code requires the code. No images needed.'
-              : 'Choose a trade type to continue.'}
+                ? 'E-code requires the code. No images needed.'
+                : 'Choose a trade type to continue.'}
           </Text>
         </View>
 
@@ -409,7 +449,7 @@ export default function Trade() {
               if (!tradeType) {
                 Alert.alert(
                   'Select type first',
-                  'Choose Physical or E-code before picking a card.'
+                  'Choose Physical or E-code before picking a card.',
                 )
                 return
               }
@@ -587,8 +627,8 @@ export default function Trade() {
                         trade.status === 'approved'
                           ? '#dcfce7'
                           : trade.status === 'rejected'
-                          ? '#fee2e2'
-                          : '#fef9c3',
+                            ? '#fee2e2'
+                            : '#fef9c3',
                     },
                   ]}
                 >
@@ -598,8 +638,8 @@ export default function Trade() {
                         trade.status === 'approved'
                           ? '#16a34a'
                           : trade.status === 'rejected'
-                          ? '#dc2626'
-                          : '#ca8a04',
+                            ? '#dc2626'
+                            : '#ca8a04',
                       fontWeight: '800',
                     }}
                   >

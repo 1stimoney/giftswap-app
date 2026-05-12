@@ -113,11 +113,11 @@ export default function SettingsTab() {
                   style: 'destructive',
                   onPress: handleDeleteAccount,
                 },
-              ]
+              ],
             )
           },
         },
-      ]
+      ],
     )
   }
 
@@ -129,7 +129,7 @@ export default function SettingsTab() {
         'delete-account',
         {
           body: {},
-        }
+        },
       )
 
       if (error) throw error
@@ -144,7 +144,7 @@ export default function SettingsTab() {
       Alert.alert(
         'Error',
         err?.message ||
-          'Failed to delete account. Make sure the delete-account function is deployed.'
+          'Failed to delete account. Make sure the delete-account function is deployed.',
       )
     } finally {
       setDeletingAccount(false)
@@ -313,6 +313,12 @@ export default function SettingsTab() {
                   <Ionicons name='chevron-forward' size={16} color='#94a3b8' />
                 }
                 onPress={() => router.push('/linked-accounts')}
+              />
+
+              <SettingsRow
+                icon='gift-outline'
+                label='Referrals'
+                onPress={() => router.push('/referrals')}
               />
 
               <SettingsRow
